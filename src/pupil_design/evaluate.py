@@ -62,8 +62,15 @@ def evaluate_per_pupil(
     asym = np.asarray(pupil_pools[split]["asym"], dtype=np.float64)
     phases = phase_pools[f"{split}_phases"].to(device)
 
-    if max_pupils is not None:
-        pupils, asym = pupils[:max_pupils], asym[:max_pupils]
+    if max_pupils is not None and max_pupils < pupils.shape[0]:
+        # Pupils are stored in asymmetry-bin order, so the first N would all sit
+        # at the low-asymmetry end and the summary below would be meaningless.
+        # Take an evenly spaced subset so a quick check still spans the range.
+        total = pupils.shape[0]
+        idx = np.linspace(0, total - 1, max_pupils).round().astype(int)
+        pupils, asym = pupils[idx], asym[idx]
+        print(f"Spot check: {max_pupils} of {total} pupils, sampled evenly across "
+              f"the asymmetry range. Omit --max-pupils for the full evaluation.")
     pupils = pupils.to(device)
 
     model = build_model(cfg.model_type, cfg.bounding_box_size, cfg.with_pupil, cfg.narrow).to(device)

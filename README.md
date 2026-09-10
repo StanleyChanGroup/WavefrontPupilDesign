@@ -77,13 +77,36 @@ size on CPU. Expect roughly one minute on a GPU and a few minutes on CPU. Set
 
 ## Pretrained weights
 
-Released with the paper for U-Net and MLP at each published noise level. Download
-from the [releases page](../../releases) and unpack into `runs/`, then evaluate
-without training:
+Weights and the exact simulation data behind the paper are attached to the
+[latest release](../../releases/latest), not stored in the repository. From
+inside a clone:
 
 ```bash
-pupil-design-eval runs/unet_sigma_0 --split test --bins 30
+gh release download --dir .
+sha256sum -c SHA256SUMS
+
+mkdir -p runs data/dataset_jan2026_bbox_128_radius_19
+tar xf unet_no_noise.tar -C runs/
+tar xf mlp_no_noise.tar  -C runs/
+mv *_pool_cache_threeway.pth data/dataset_jan2026_bbox_128_radius_19/
 ```
+
+Then reproduce the paper's noiseless test curve without training anything:
+
+```bash
+pupil-design-eval runs/unet_no_noise --data-root ./data --split test --bins 30
+```
+
+Add `--max-pupils 40` for a spot check that finishes in under a minute.
+
+The release currently carries the noiseless U-Net and MLP. Models at the
+published noise levels of 0.001, 0.01 and 0.03 are not yet included; train them
+with `scripts/reproduce_paper.sh`.
+
+Downloading the pupil and phase pools is optional, since generation is seeded
+and reproducible. They are shipped so that reproduction does not depend on that
+being true, and the test suite asserts the shipped pools match the published
+asymmetries exactly.
 
 ## Library use
 
