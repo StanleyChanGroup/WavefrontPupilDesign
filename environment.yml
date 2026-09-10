@@ -1,0 +1,21 @@
+# Conda environment matching the one used for the published results.
+#   conda env create -f environment.yml && conda activate pupil-design
+name: pupil-design
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch=2.8.*
+  - pytorch-cuda=12.6      # drop this line for a CPU-only install
+  - numpy=2.3.*
+  - scipy=1.15.*
+  - matplotlib=3.10.*
+  - tqdm=4.67.*
+  - pip
+  - pip:
+      - opencv-python==4.12.*
+      - tensorboard==2.20.*
+      - pytest==8.4.*
+      - jupyter

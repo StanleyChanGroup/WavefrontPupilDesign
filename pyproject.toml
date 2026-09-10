@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pupil-design"
+version = "0.1.0"
+description = "Pupil design for computational wavefront estimation"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "opencv-python>=4.6",
+    "matplotlib>=3.6",
+    "tqdm>=4.64",
+]
+
+[project.scripts]
+pupil-design-train = "pupil_design.train:main"
+pupil-design-eval = "pupil_design.evaluate:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "tensorboard"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: requires GPU and published checkpoints"]
