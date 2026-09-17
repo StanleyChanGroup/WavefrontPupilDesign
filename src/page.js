@@ -527,7 +527,13 @@ for(const id of ['rAlpha','rAlpha2']){
 if(window.IntersectionObserver && $('sticky')){
   const ctl=document.querySelector('.demo .ctl');
   if(ctl) new IntersectionObserver(([e])=>{
-    $('sticky').classList.toggle('on', !e.isIntersecting && e.boundingClientRect.top < 0);
+    const on = !e.isIntersecting && e.boundingClientRect.top < 0;
+    const bar = $('sticky');
+    bar.classList.toggle('on', on);
+    /* `inert` rather than aria-hidden: the bar holds a slider and a button, and
+       aria-hidden on a container whose control has focus hides that control from
+       assistive technology. inert removes it from focus order AND the a11y tree. */
+    bar.inert = !on;
   },{threshold:0}).observe(ctl);
 }
 for(const id of ['bSeed','bSeed2']){
@@ -575,14 +581,27 @@ $('picker').append(upBtn);
 fileIn.addEventListener('change',async()=>{
   const f=fileIn.files&&fileIn.files[0]; if(!f) return;
   try{
-    const bmp=await createImageBitmap(f);
+    /* createImageBitmap rejects anything the browser cannot decode -- HEIC from an iPhone
+       is the common one. Fall back to an <img>, which accepts whatever the browser can
+       render, before giving up. */
+    let bmp;
+    try { bmp = await createImageBitmap(f); }
+    catch { bmp = await new Promise((res,rej)=>{
+      const url=URL.createObjectURL(f), im=new Image();
+      im.onload=()=>{ URL.revokeObjectURL(url); res(im); };
+      im.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('browser cannot decode '+(f.type||'this file'))); };
+      im.src=url;
+    }); }
     userImg=imageToScene(bmp,SCENE_N); bmp.close&&bmp.close();
     scene=userImg; sceneId='user';
     upLb.textContent=f.name.length>14?f.name.slice(0,12)+'…':f.name;
     paintGrey(upCv,userImg);
     [...$('picker').children].forEach(c=>c.setAttribute('aria-pressed',c===upBtn?'true':'false'));
     update();
-  }catch(err){ console.error('[scene] could not read image:',err); upLb.textContent='Unreadable'; }
+  }catch(err){
+    console.error('[scene] could not read image:',err);
+    upLb.textContent = /decode/i.test(String(err)) ? 'Unsupported format' : 'Unreadable';
+  }
   fileIn.value='';
 });
 
