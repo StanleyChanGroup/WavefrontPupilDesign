@@ -1,0 +1,32 @@
+{
+  "title": "Pupil Design for Computational Wavefront Estimation",
+  "venue": "Under review, Optics Express",
+  "arxiv": "https://arxiv.org/abs/2604.00225",
+  "code": "https://github.com/StanleyChanGroup/WavefrontPupilDesign",
+  "abstract": "Establishing a precise connection between imaged intensity and the incident wavefront is essential for emerging applications in adaptive optics, astronomy, and non-line-of-sight imaging. While prior work has shown that breaking symmetries in pupil design enables wavefront recovery from a single intensity measurement, there is little guidance on how to design a pupil that improves wavefront estimation. In this work, we introduce a quantitative asymmetry metric to bridge this gap and, through an extensive empirical study and supporting analysis, demonstrate that increasing asymmetry enhances wavefront recoverability. We analyze the trade-offs in pupil design and the impact on light throughput, along with performance in noise. Both large-scale simulations and optical bench experiments are carried out to support our findings. The proposed asymmetry metric can therefore be used to guide the pupil design process to improve phase recoverability in wavefront estimation applications.",
+  "authors": [
+    {
+      "name": "Ali Almuallem",
+      "url": "https://almuallem.github.io/",
+      "corresponding": true
+    },
+    {
+      "name": "Nicholas Chimitt",
+      "url": "https://nchimitt.github.io/"
+    },
+    {
+      "name": "Bole Ma",
+      "url": "https://bole-ma.github.io/"
+    },
+    {
+      "name": "Qi Guo",
+      "url": "https://www.qiguo.org/"
+    },
+    {
+      "name": "Stanley H. Chan",
+      "url": "https://engineering.purdue.edu/ChanGroup/index.html"
+    }
+  ],
+  "affiliation": "Elmore Family School of Electrical and Computer Engineering, Purdue University, West Lafayette, IN 47907, USA",
+  "bibtex": "@article{almuallem2026pupil,\n  title   = {Pupil Design for Computational Wavefront Estimation},\n  author  = {Almuallem, Ali and Chimitt, Nicholas and Ma, Bole and Guo, Qi and Chan, Stanley H.},\n  journal = {arXiv preprint arXiv:2604.00225},\n  year    = {2026}\n}"
+}

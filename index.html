@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pupil Design for Computational Wavefront Estimation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#EEF1F5; --surface:#FFFFFF; --sunk:#E4E9F0;
+  --ink:#101720; --muted:#59677A; --faint:#8494A6;
+  --line:#D5DDE7; --line-strong:#BCC7D4;
+  --pupil:#1B96DC; --flip:#C7302F; --sym:#6C2F91; --asym:#F0AE1E;
+  --s-lo:#C62D24; --s-mid:#D98A18; --s-hi:#12876A;
+  --io-in:#C2410C; --io-out:#0F7B60;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --ground:#0B0F14; --surface:#141A22; --sunk:#0F141B;
+  --ink:#E4EBF3; --muted:#8695A8; --faint:#6A7889;
+  --line:#222B36; --line-strong:#33404F;
+  --pupil:#38A9E8; --flip:#E2504C; --sym:#A362D6; --asym:#F5BC3C;
+  --s-lo:#E4584C; --s-mid:#EDA93A; --s-hi:#2FB48D;
+  --io-in:#F0743C; --io-out:#35C79C;
+}}
+:root[data-theme="dark"]{
+  --ground:#0B0F14; --surface:#141A22; --sunk:#0F141B;
+  --ink:#E4EBF3; --muted:#8695A8; --faint:#6A7889;
+  --line:#222B36; --line-strong:#33404F;
+  --pupil:#38A9E8; --flip:#E2504C; --sym:#A362D6; --asym:#F5BC3C;
+  --s-lo:#E4584C; --s-mid:#EDA93A; --s-hi:#2FB48D;
+  --io-in:#F0743C; --io-out:#35C79C;
+}
+*{box-sizing:border-box}
+/* nothing may exceed its container: the page body must never scroll sideways */
+img,canvas,svg{max-width:100%}
+/* A class that sets `display` beats the browser's own [hidden] rule, so anything toggled
+   with el.hidden needs this or it stays on screen. The scatter's hover card did exactly
+   that -- it rendered as an empty box before you ever touched the plot. */
+[hidden]{display:none!important}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.55;
+  -webkit-font-smoothing:antialiased;margin:0}
+.wrap{max-width:1140px;margin:0 auto;padding-inline:20px;padding-block:26px 56px}
+.k{font-family:var(--cond);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.mi{flex:0 0 auto;opacity:.85}
+
+/* masthead */
+.mast{text-align:center;padding-bottom:18px}
+.venue{font-family:var(--cond);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--faint);font-weight:600;margin:0 0 8px}
+h1{font-family:var(--cond);font-weight:700;font-size:clamp(26px,4.4vw,46px);line-height:1.06;
+  letter-spacing:-.014em;margin:0 auto;text-wrap:balance;max-width:26ch}
+.hook{margin:10px auto 0;max-width:60ch;font-size:17px;color:var(--muted);text-wrap:pretty}
+.hook b{color:var(--ink);font-weight:500}
+.authors{margin:14px 0 0;font-size:14px;line-height:1.7}
+.authors a{color:var(--pupil);text-decoration:none;border-bottom:1px solid transparent}
+.authors a:hover{border-bottom-color:var(--pupil)}
+.authors .sep{color:var(--faint)}
+.affil{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
+.links{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.links a{font-family:var(--cond);font-weight:600;font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:7px 15px;border-radius:7px;border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--ink);text-decoration:none}
+.links a:hover{background:var(--sunk)}
+
+section{margin-top:32px}
+.shead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
+  margin-bottom:13px}
+.shead h2{font-family:var(--cond);font-weight:700;font-size:clamp(20px,2.2vw,26px);
+  letter-spacing:-.006em;margin:0;line-height:1.2}
+.shead p{margin:0;font-size:13px;color:var(--muted);max-width:58ch}
+
+/* ---- the demo: controls + mechanism on the left, payoff on the right ---- */
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;
+  display:flex;flex-direction:column;gap:11px}
+.demotitle{font-family:var(--cond);font-weight:700;font-size:clamp(17px,1.7vw,20px);letter-spacing:.005em;
+  margin:0 0 2px;color:var(--ink);text-wrap:balance}
+
+/* ---- pupil track ---- */
+.track{display:flex;gap:3px;overflow-x:auto;padding:6px;background:var(--sunk);
+  border:1px solid var(--line);border-radius:8px;scrollbar-width:thin}
+.chip{flex:0 0 auto;width:36px;border:0;padding:0;background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:1px}
+.chip canvas{width:32px;height:32px;display:block;border-radius:4px;background:var(--surface);
+  border:1px solid var(--line)}
+.chip .t{font-family:var(--mono);font-size:7.5px;color:var(--faint);
+  font-variant-numeric:tabular-nums;line-height:1}
+.chip[aria-pressed="true"] canvas{border-color:var(--pupil);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--pupil) 30%,transparent)}
+.chip[aria-pressed="true"] .t{color:var(--pupil);font-weight:500}
+.chip:focus-visible{outline:2px solid var(--pupil);outline-offset:2px}
+
+/* ---- labels, slider, readouts, buttons ---- */
+.cap{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+.cap .nm{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+input[type=range]{accent-color:var(--pupil);height:20px;display:block;margin:0}
+.figs{display:flex;gap:18px;flex-wrap:wrap}
+.fig{display:flex;flex-direction:column;min-width:58px}
+.fig .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500;
+  font-size:25px;line-height:1.15;letter-spacing:-.02em}
+.fig .v small{font-size:.5em;color:var(--muted);margin-left:1px}
+.btn{font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;padding:6px 12px;border-radius:6px;border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--ink);cursor:pointer;flex:0 0 auto}
+.btn:hover{background:var(--sunk)}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--pupil);outline-offset:2px}
+
+/* ---- small image tiles (decomposition, pipeline, ambiguity) ---- */
+.row{display:grid;gap:7px}
+.row.c4{grid-template-columns:repeat(4,1fr)}
+.row.c3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:540px){ .row.c4{grid-template-columns:repeat(2,1fr)} }
+.cell{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cell canvas{width:100%;aspect-ratio:1;display:block;border-radius:4px;background:var(--sunk);
+  border:1px solid var(--line)}
+.cell .lab{font-family:var(--cond);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:600}
+.cell .lab .m{font-family:var(--mono);text-transform:none;letter-spacing:0;font-size:10px}
+.cell .val{font-family:var(--mono);font-size:11px;color:var(--faint);line-height:1.3}
+#cDec{cursor:crosshair}
+.lg{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.lg i{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.lg b{font-family:var(--mono);font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* control row: the slider takes the slack, the reseed button rides beside it */
+.ctl{display:flex;gap:14px 18px;flex-wrap:wrap;align-items:center}
+.ctl input[type=range]{flex:1 1 260px;min-width:180px}
+
+/* decomposition sits on the left of its row and the three readouts fill the right,
+   instead of four small tiles floating in an otherwise empty band */
+.decstrip{border-block:1px solid var(--line);padding-block:11px}
+.decrow{display:flex;align-items:center;gap:20px 34px;flex-wrap:wrap;
+  justify-content:space-between}
+.decblock{display:flex;flex-direction:column;gap:6px;min-width:0}
+.dectiles{display:flex;gap:7px}
+.dectiles .cell{width:64px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:1px}
+
+/* scenes stack down the side of the images rather than across a half-empty row */
+.scenerow{display:flex;gap:14px;align-items:flex-start}
+@media(max-width:700px){ .scenerow{flex-direction:column} }
+.pick{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.scenerow .pick{flex-direction:column;align-items:flex-start;flex:0 0 auto}
+.pickcol{display:flex;flex-direction:column;gap:6px}
+@media(max-width:700px){
+  .scenerow .pick{flex-direction:row;align-items:center;gap:10px}
+  .pickcol{flex-direction:row;flex-wrap:wrap}
+}
+.scenerow .shots{flex:1 1 auto;min-width:0}
+.pick{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.seg{font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.05em;
+  padding:5px 11px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);
+  color:var(--muted);cursor:pointer}
+/* scene tiles: the picture is the label; the words sit under it */
+.seg.thumb{display:flex;align-items:center;gap:8px;padding:5px 9px 5px 5px;
+  width:100%;border-radius:8px;text-align:left}
+.seg.thumb canvas{width:38px;height:38px;display:block;border-radius:5px;background:var(--sunk);
+  border:1px solid var(--line);flex:0 0 auto}
+.seg.thumb .tl{font-size:11px;letter-spacing:.03em;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg.thumb[aria-pressed="true"] canvas{border-color:var(--pupil);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--pupil) 30%,transparent)}
+.seg.thumb.upload canvas{border-style:dashed}
+@media(max-width:700px){
+  .seg.thumb{flex-direction:column;width:76px;padding:5px;text-align:center;gap:4px}
+  .seg.thumb canvas{width:56px;height:56px}
+  .seg.thumb .tl{max-width:68px}
+}
+.seg[aria-pressed="true"]{background:color-mix(in srgb,var(--pupil) 14%,transparent);
+  border-color:var(--pupil);color:var(--pupil)}
+.seg:focus-visible{outline:2px solid var(--pupil);outline-offset:2px}
+
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+@media(max-width:520px){ .shots{grid-template-columns:1fr} }
+.shot{display:flex;flex-direction:column;gap:4px;min-width:0;position:relative}
+.shot canvas{width:100%;aspect-ratio:1;display:block;border-radius:7px;background:var(--sunk);
+  border:1px solid var(--line)}
+.shot.bad canvas{border-color:var(--s-lo);border-width:2px}
+.shot.good canvas{border-color:var(--s-hi);border-width:2px}
+.shot .hd{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.shot .nm{font-family:var(--cond);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;
+  font-weight:600;color:var(--muted)}
+.shot.bad .nm{color:var(--s-lo)} .shot.good .nm{color:var(--s-hi)}
+.shot .q{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.shot .gate{position:absolute;left:0;right:0;top:0;bottom:22px;display:grid;place-items:center;
+  border-radius:7px;background:color-mix(in srgb,var(--sunk) 90%,transparent);text-align:center;padding:12px}
+.shot .gate p{margin:0 0 8px;font-size:11.5px;color:var(--muted);max-width:24ch}
+.mload{font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;padding:7px 13px;border-radius:6px;border:1px solid var(--pupil);
+  background:var(--pupil);color:#fff;cursor:pointer}
+.mload:hover{filter:brightness(1.08)}
+.mload:disabled{opacity:.6;cursor:default}
+.pending{opacity:.4;transition:opacity .15s ease}
+.shot.good canvas.pending{opacity:.35}
+.shot canvas.pending{opacity:.4}
+
+.strip{display:flex;gap:16px 30px;flex-wrap:wrap;align-items:flex-end;padding-top:12px;
+  border-top:1px solid var(--line)}
+.ba{display:flex;flex-direction:column;gap:2px;min-width:190px}
+.ba .pair{display:flex;align-items:flex-end;gap:10px}
+.ba .half{display:flex;flex-direction:column}
+.ba .t{font-family:var(--cond);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--faint);font-weight:600}
+.ba .v{font-family:var(--mono);font-size:26px;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;line-height:1.12}
+.ba .v.dim{color:var(--muted)}
+.ba .arrow{font-family:var(--mono);font-size:15px;color:var(--faint);padding-bottom:4px}
+.ba .bar{height:4px;border-radius:3px;background:var(--sunk);margin-top:3px;overflow:hidden}
+.ba .bar i{display:block;height:100%;border-radius:3px;transition:width .2s ease,background .2s ease}
+#scBefBar{background:var(--muted)}
+.mini{display:flex;flex-direction:column;min-width:86px;gap:1px}
+.mini .v{font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
+.mstat{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-left:auto;align-self:flex-end}
+.mstat.on{color:var(--s-hi)} .mstat.busy{color:var(--asym)} .mstat.err{color:var(--flip)}
+
+/* secondary panels */
+.cols{display:grid;grid-template-columns:1fr;gap:13px}
+@media(min-width:860px){ .cols.two{grid-template-columns:1fr 1fr} }
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 14px 14px}
+.panel h3{font-family:var(--cond);font-weight:600;font-size:10.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 9px;display:flex;
+  justify-content:space-between;align-items:baseline;gap:10px}
+.panel h3 em{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:0;
+  text-transform:none;color:var(--faint)}
+.panel .sub{font-size:12px;color:var(--faint);margin:0 0 10px}
+.meter{margin-top:9px}
+.meter .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.meter .num{font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums;line-height:1.1}
+.meter .bar{height:6px;border-radius:4px;background:var(--sunk);margin-top:5px;overflow:hidden}
+.meter .bar i{display:block;height:100%;border-radius:4px;transition:width .18s ease,background .18s ease}
+.meter .ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;
+  color:var(--faint);margin-top:2px}
+#trend{width:100%;aspect-ratio:16/9;height:auto;display:block;border-radius:6px}
+
+/* wavefront colour scale under the pipeline */
+.cbar{margin-top:2px;min-width:0}
+.cbhead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:3px}
+.cbar canvas{width:100%;height:8px;display:block;border-radius:2px;border:1px solid var(--line)}
+.cbarticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;
+  color:var(--faint);margin-top:2px}
+.cbarnote{font-size:10px;color:var(--faint);margin-top:3px;line-height:1.4;max-width:70ch}
+.mini-inline{flex-direction:row;align-items:baseline;gap:7px;min-width:0}
+.mini-inline .v{font-size:13px}
+
+.tstat{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px;
+  display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+
+.pipescroll{overflow-x:auto;scrollbar-width:thin;margin-inline:-2px;padding-inline:2px}
+.pipe{display:grid;grid-template-columns:66px repeat(4,1fr);gap:6px;align-items:start}
+@media(max-width:620px){ .pipe{min-width:430px;grid-template-columns:50px repeat(4,1fr)} }
+.pipe .ph{font-family:var(--cond);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--faint);font-weight:600}
+.pipe .rlab{font-family:var(--cond);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;align-self:center}
+.pipe .cell.io-in canvas{border-color:var(--io-in);border-width:3px;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--io-in) 20%,transparent)}
+.pipe .cell.io-out canvas{border-color:var(--io-out);border-width:3px;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--io-out) 20%,transparent)}
+.pipe .cell .tag{font-family:var(--cond);font-size:10px;letter-spacing:.04em;
+  font-weight:700}
+.pipe .cell.io-in .tag{color:var(--io-in)}
+.pipe .cell.io-out .tag{color:var(--io-out)}
+.pipe .cell.net.idle canvas{background:repeating-linear-gradient(45deg,transparent,transparent 5px,
+  color-mix(in srgb,var(--faint) 10%,transparent) 5px,color-mix(in srgb,var(--faint) 10%,transparent) 10px);
+  border-style:dashed}
+
+/* paper content */
+.prose{font-size:15px}
+.prose p{margin:0 0 12px}
+/* The abstract sat at 66ch while the figures below ran the full width, which read as a
+   stray narrow slab. Two columns fill the same width and keep a readable measure. */
+@media(min-width:820px){
+  .prose.two-col{columns:2;column-gap:44px;text-align:justify;hyphens:auto}
+  .prose.two-col p{margin:0}
+}
+figure{margin:0 0 16px}
+figure img{width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:block}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:7px}
+figcaption b{color:var(--ink);font-weight:500}
+.figgrid{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:800px){ .figgrid.two{grid-template-columns:1fr 1fr} }
+pre.bib{font-family:var(--mono);font-size:11.5px;background:var(--sunk);border:1px solid var(--line);
+  border-radius:8px;padding:13px 14px;overflow-x:auto;margin:0;line-height:1.6}
+footer{margin-top:32px;padding-top:15px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--faint);line-height:1.6}
+footer p{margin:0 0 6px}
+
+/* sticky pupil control: rides along while the lower panels are on screen, and stops
+   when its zone ends (just before the abstract). Hidden until the real controls leave. */
+.stickyzone{position:relative}
+.stickybar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+  padding:8px 12px;margin-bottom:10px;border:1px solid var(--line);border-radius:10px;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 2px 12px -6px rgba(0,0,0,.28);
+  opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .16s ease,transform .16s ease}
+.stickybar.on{opacity:1;transform:none;pointer-events:auto}
+.stickybar canvas{width:40px;height:40px;flex:0 0 auto;border-radius:6px;
+  border:1px solid var(--line);background:var(--sunk)}
+.scur{display:flex;align-items:center;gap:9px;flex:0 0 auto;padding-right:14px;
+  border-right:1px solid var(--line)}
+.scurtxt{display:flex;flex-direction:column;min-width:82px}
+.scurtxt .nm{font-family:var(--mono);font-size:13px;color:var(--ink);line-height:1.2}
+@media(max-width:620px){ .scurtxt{display:none} .scur{padding-right:8px;border-right:0} }
+/* brief pulse when a pupil is chosen from the scatter, so the link is obvious */
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--pupil) 70%,transparent)}
+                100%{box-shadow:0 0 0 14px transparent}}
+.stickybar.flash{animation:pulse .7s ease-out}
+@media(prefers-reduced-motion:reduce){ .stickybar.flash{animation:none} }
+.sslider{flex:1 1 200px;min-width:120px;display:flex}
+.sslider input[type=range]{width:100%}
+.sfig{display:flex;flex-direction:column;min-width:52px;flex:0 0 auto}
+.sfig .v{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;line-height:1.15}
+@media(max-width:620px){ .stickybar .sfig:nth-of-type(2){display:none} }
+
+/* population scatter */
+.scwrap{position:relative}
+#scatter{width:100%;aspect-ratio:21/9;height:auto;display:block;border-radius:6px;cursor:crosshair}
+@media(max-width:700px){ #scatter{aspect-ratio:4/3} }
+.scnote{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:auto}
+.sclegend{font-size:11px;color:var(--faint)}
+.schover{position:absolute;left:0;top:0;pointer-events:none;z-index:6;display:flex;gap:9px;align-items:center;
+  padding:7px 9px;border:1px solid var(--line-strong);border-radius:8px;
+  background:color-mix(in srgb,var(--surface) 96%,transparent);
+  box-shadow:0 4px 16px -8px rgba(0,0,0,.4)}
+.schover canvas{width:46px;height:46px;border-radius:5px;border:1px solid var(--line);flex:0 0 auto}
+.scvals{font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--muted);white-space:nowrap}
+.scvals b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.tip{position:fixed;pointer-events:none;z-index:9;background:var(--ink);color:var(--ground);
+  font-family:var(--mono);font-size:11px;padding:4px 8px;border-radius:5px;opacity:0;
+  transition:opacity .1s ease;white-space:nowrap}
+.tip.on{opacity:1}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <p class="venue">Under review · Optics Express</p>
+    <h1>Pupil Design for Computational Wavefront Estimation</h1>
+    <p class="hook">A comprehensive study of asymmetry in wavefront estimation</p>
+    <p class="authors">
+      <a href="https://almuallem.github.io/">Ali Almuallem</a><span class="sep"> · </span>
+      <a href="https://nchimitt.github.io/">Nicholas Chimitt</a><span class="sep"> · </span>
+      <a href="https://bole-ma.github.io/">Bole Ma</a><span class="sep"> · </span>
+      <a href="https://www.qiguo.org/">Qi Guo</a><span class="sep"> · </span>
+      <a href="https://engineering.purdue.edu/ChanGroup/index.html">Stanley H. Chan</a>
+    </p>
+    <p class="affil">Elmore Family School of Electrical and Computer Engineering, Purdue University</p>
+    <div class="links">
+      <a href="https://arxiv.org/abs/2604.00225">Paper</a>
+      <a href="https://github.com/StanleyChanGroup/WavefrontPupilDesign">Code</a>
+      <a href="#cite">BibTeX</a>
+    </div>
+  </header>
+
+  <div class="stickyzone">
+    <div class="stickybar" id="sticky" aria-hidden="true">
+      <div class="scur">
+        <canvas id="sThumb" width="76" height="76" aria-hidden="true"></canvas>
+        <div class="scurtxt"><span class="k">Current pupil</span>
+          <span class="nm" id="sName">—</span></div>
+      </div>
+      <div class="sslider">
+        <input type="range" id="rAlpha2" min="0" max="24" step="1" value="0"
+               aria-label="Pupil along the asymmetry ladder">
+      </div>
+      <div class="sfig"><span class="k" style="letter-spacing:0"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 0 0 10z" fill="currentColor" stroke="none"/></svg><span style="text-transform:none;font-family:var(--mono);font-size:11px">α</span></span><span class="v" id="sAlpha">—</span></div>
+      <div class="sfig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 1 4.33 7.5L7 7z" fill="currentColor" stroke="none"/></svg>Asymmetry&nbsp;%</span><span class="v" id="sPct">—</span></div>
+      <div class="sfig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12h2.6L6 3l2.4 9H13"/></svg>Correction (Strehl)</span><span class="v" id="sStrehl">—</span></div>
+      <button class="btn" id="bSeed2">New aberration</button>
+    </div>
+
+  <section style="margin-top:6px">
+    <div class="demo">
+      <h3 class="demotitle">Real-time aberration inference using our trained neural network</h3>
+      <div class="cap"><span class="k">Pupil</span><span class="nm" id="pName"></span></div>
+      <div class="track" id="track" role="group" aria-label="Select a pupil"></div>
+
+      <div class="ctl">
+        <input type="range" id="rAlpha" min="0" max="24" step="1" value="0"
+               aria-label="Pupil along the asymmetry ladder">
+        <button class="btn" id="bSeed">New aberration</button>
+      </div>
+
+      <div class="decstrip">
+        <div class="decrow">
+          <div class="decblock">
+            <span class="k">Decomposition</span>
+            <div class="dectiles">
+              <div class="cell"><canvas id="cPupil" width="140" height="140"></canvas>
+                <span class="lab">Pupil</span></div>
+              <div class="cell"><canvas id="cFlip" width="140" height="140"></canvas>
+                <span class="lab">Flipped</span></div>
+              <div class="cell"><canvas id="cOver" width="140" height="140"></canvas>
+                <span class="lab">Aligned</span></div>
+              <div class="cell"><canvas id="cDec" width="140" height="140"></canvas>
+                <span class="lab">Split</span></div>
+            </div>
+            <div class="legend">
+              <span class="lg"><i style="background:var(--sym)"></i>Symmetric <b id="lgSym">—</b></span>
+              <span class="lg"><i style="background:var(--asym)"></i>Asymmetric <b id="lgAsym">—</b></span>
+            </div>
+          </div>
+          <div class="figs">
+            <div class="fig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 0 0 10z" fill="currentColor" stroke="none"/></svg>Asymmetry&nbsp;<span style="font-family:var(--mono);text-transform:none">α</span></span>
+              <span class="v" id="hAlpha">0.0000</span></div>
+            <div class="fig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 1 4.33 7.5L7 7z" fill="currentColor" stroke="none"/></svg>Asymmetry&nbsp;%<span style="font-family:var(--mono)">*</span></span>
+              <span class="v" id="hPct">0<small>%</small></span></div>
+            <div class="fig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.4"/><path d="M1 7h2.1M10.9 7H13M7 1v2.1M7 10.9V13M3.1 3.1l1.5 1.5M9.4 9.4l1.5 1.5M10.9 3.1L9.4 4.6M4.6 9.4l-1.5 1.5"/></svg>Throughput</span>
+              <span class="v" id="hThru">100<small>%</small></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scenerow">
+        <div class="pick"><span class="k">Scene</span>
+          <div id="picker" class="pickcol"></div></div>
+        <div class="shots">
+          <div class="shot">
+            <canvas id="cScene" width="340" height="340"></canvas>
+            <div class="hd"><span class="nm">Diffraction limit</span>
+              <span class="q" style="color:var(--faint)">best possible</span></div>
+          </div>
+          <div class="shot bad">
+            <canvas id="cSceneA" width="340" height="340"></canvas>
+            <div class="hd"><span class="nm">Aberrated</span><span class="q" id="vPsnrA">—</span></div>
+          </div>
+          <div class="shot good">
+            <canvas id="cSceneC" width="340" height="340"></canvas>
+            <div class="hd"><span class="nm">Corrected</span><span class="q" id="vPsnrC">—</span></div>
+            <div class="gate" id="gate">
+              <div><p>Correction runs the trained network in your browser.</p>
+                <button class="mload" id="bLoad">Load model · 15 MB</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="strip">
+        <div class="ba">
+          <span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12h2.6L6 3l2.4 9H13"/></svg>Strehl ratio <span style="font-family:var(--mono)">†</span></span>
+          <div class="pair">
+            <div class="half"><span class="t">before</span>
+              <span class="v dim" id="scBefore">—</span></div>
+            <span class="arrow" aria-hidden="true">→</span>
+            <div class="half"><span class="t">correction (Strehl)</span>
+              <span class="v" id="scStrehl">—</span></div>
+          </div>
+          <div class="bar"><i id="scBefBar" style="width:0%"></i></div>
+          <div class="bar"><i id="scBar" style="width:0%"></i></div>
+        </div>
+        <div class="mini"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="7" r="3.4"/><circle cx="9" cy="7" r="3.4"/></svg>PSF difference<span style="font-family:var(--mono)">‡</span></span>
+          <span class="v" id="mNum">—</span></div>
+        <div class="mini"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9.5c2 0 2-4 4-4s2 4 4 4 2-2.5 4-2.5"/></svg>Residual RMS</span>
+          <span class="v" id="vRms">—</span></div>
+        <div class="mini"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 11.5V7M4.5 11.5V3.5M8 11.5V8.5M11.5 11.5V5.5"/></svg>PSNR</span>
+          <span class="v" id="vPsnrS">—</span></div>
+        <div class="mini"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="8" height="8" rx="1.2"/><rect x="4.5" y="4.5" width="8" height="8" rx="1.2"/></svg>SSIM</span>
+          <span class="v" id="vSsim">—</span></div>
+        <span class="mstat" id="mStat">model not loaded</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <h2>What the network sees</h2>
+      <p>Only the aberrated intensity is measured. Everything else is inferred.</p>
+    </div>
+    <div class="panel">
+      <div class="pipescroll"><div class="pipe">
+        <div class="rlab">Intensity</div>
+        <div class="cell"><canvas id="cIdeal" width="130" height="130"></canvas>
+          <span class="val">Ideal PSF</span></div>
+        <div class="cell io-in"><canvas id="cAbb" width="130" height="130"></canvas>
+          <span class="tag">Input: aberrated PSF</span></div>
+        <div class="cell net"><canvas id="cPredI" width="130" height="130"></canvas>
+          <span class="val">Predicted PSF (by-product)</span></div>
+        <div class="cell net"><canvas id="cCorrI" width="130" height="130"></canvas>
+          <span class="val">Corrected PSF (by-product)</span></div>
+
+        <div class="rlab">Wavefront</div>
+        <div class="cell"><canvas id="cFlat" width="130" height="130"></canvas>
+          <span class="val">Ideal wavefront (binary mask)</span></div>
+        <div class="cell"><canvas id="cPhase" width="130" height="130"></canvas>
+          <span class="val">Ground truth wavefront (not observed)</span></div>
+        <div class="cell io-out net"><canvas id="cPredW" width="130" height="130"></canvas>
+          <span class="tag">Output: estimated wavefront</span></div>
+        <div class="cell net"><canvas id="cResW" width="130" height="130"></canvas>
+          <span class="val">Corrected wavefront</span></div>
+
+        <div class="rlab"></div>
+        <div class="cbar" style="grid-column:2 / -1">
+          <div class="cbhead"><span class="k">Wavefront scale</span>
+            <div class="mini mini-inline"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9.5c2 0 2-4 4-4s2 4 4 4 2-2.5 4-2.5"/></svg>Residual RMS</span>
+              <span class="v" id="vRms2">—</span></div></div>
+          <canvas id="cScale" width="600" height="14"></canvas>
+          <div class="cbarticks"><span id="cbLo">—</span><span>0</span><span id="cbHi">—</span></div>
+          <div class="cbarnote">All three wavefronts share this scale, so the corrected one
+            visibly flattens.</div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+  <section>
+    <div class="cols two">
+      <div class="panel">
+        <h3>The ambiguity <em>pupil fixed</em></h3>
+        <p class="sub">A wavefront and its conjugate flip yield the same PSF.
+          Asymmetry pulls them apart.</p>
+        <div class="row c3">
+          <div class="cell"><canvas id="cPlus" width="170" height="170"></canvas>
+            <span class="lab">PSF <span class="m">φ</span></span></div>
+          <div class="cell"><canvas id="cMinus" width="170" height="170"></canvas>
+            <span class="lab">PSF <span class="m">φ̃</span></span></div>
+          <div class="cell"><canvas id="cDiff" width="170" height="170"></canvas>
+            <span class="lab">Difference</span></div>
+        </div>
+        <div class="meter">
+          <div class="top"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="7" r="3.4"/><circle cx="9" cy="7" r="3.4"/></svg>PSF difference</span><span class="num" id="mNum2">—</span></div>
+          <div class="bar"><i id="mBar" style="width:0%"></i></div>
+          <div class="ends"><span>0% identical</span><span>100% disjoint</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3><span>PSF difference over <span id="tNW">16</span> wavefronts</span></h3>
+        <p class="sub">Every pupil on the slider, against its asymmetry.</p>
+        <canvas id="trend" width="820" height="210"></canvas>
+        <div class="tstat"><span id="tNote">averaging…</span><span id="tCorr"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <h2>All 1500 test pupils</h2>
+      <p>Each dot is one held-out pupil, scored over 1000 held-out wavefronts.
+         Hover to see its shape.</p>
+    </div>
+    <div class="panel">
+      <div class="pick" style="margin-bottom:9px">
+        <span class="k">Show</span>
+        <button class="seg" id="sfLoss" type="button" aria-pressed="true">Estimation error</button>
+        <button class="seg" id="sfDiff" type="button" aria-pressed="false">PSF difference</button>
+        <button class="seg" id="sfStrehl" type="button" aria-pressed="false">Corrected Strehl</button>
+        <span class="sclegend">line = median, band = middle 50%</span>
+        <span class="scnote" id="scNote">loading…</span>
+      </div>
+      <div class="scwrap">
+        <canvas id="scatter"></canvas>
+        <div class="schover" id="scHover" hidden>
+          <canvas id="scShape" width="104" height="104"></canvas>
+          <div class="scvals" id="scVals"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+
+  <section>
+    <div class="shead"><h2>Abstract</h2></div>
+    <div class="prose two-col"><p id="abs">Establishing a precise connection between imaged intensity and the incident wavefront is essential for emerging applications in adaptive optics, astronomy, and non-line-of-sight imaging. While prior work has shown that breaking symmetries in pupil design enables wavefront recovery from a single intensity measurement, there is little guidance on how to design a pupil that improves wavefront estimation. In this work, we introduce a quantitative asymmetry metric to bridge this gap and, through an extensive empirical study and supporting analysis, demonstrate that increasing asymmetry enhances wavefront recoverability. We analyze the trade-offs in pupil design and the impact on light throughput, along with performance in noise. Both large-scale simulations and optical bench experiments are carried out to support our findings. The proposed asymmetry metric can therefore be used to guide the pupil design process to improve phase recoverability in wavefront estimation applications.</p></div>
+  </section>
+
+  <section>
+    <div class="shead">
+      <h2>Results</h2>
+      <p>Across 1500 held-out pupils and 1000 held-out wavefronts.</p>
+    </div>
+    <div class="figgrid two">
+      <figure><img src="figures/loss_vs_asym.webp" alt="Estimation error against asymmetry">
+        <figcaption><b>Error falls with asymmetry.</b> Wavefront MSE over the test pool, 30 bins.</figcaption></figure>
+      <figure><img src="figures/strehl_vs_asym.webp" alt="Corrected Strehl against asymmetry">
+        <figcaption><b>Correction improves with asymmetry.</b> Strehl against each pupil's own
+          diffraction limit.</figcaption></figure>
+    </div>
+    <figure><img src="figures/psf_difference.webp" alt="Normalized PSF difference against asymmetry">
+      <figcaption><b>Why.</b> The difference between a PSF and the PSF of its conjugate flip grows
+        with asymmetry, so the measurement can finally tell them apart.</figcaption></figure>
+  </section>
+
+
+
+  <section id="cite">
+    <div class="shead"><h2>Citation</h2></div>
+    <pre class="bib">@article{almuallem2026pupil,
+  title   = {Pupil Design for Computational Wavefront Estimation},
+  author  = {Almuallem, Ali and Chimitt, Nicholas and Ma, Bole and Guo, Qi and Chan, Stanley H.},
+  journal = {arXiv preprint arXiv:2604.00225},
+  year    = {2026}
+}</pre>
+  </section>
+
+  <footer>
+    <p><span style="font-family:var(--mono)">*</span> α is the asymmetric share of the pupil area,
+      using the corrected alignment so a symmetric pupil scores exactly 0; the percentage is against
+      the most asymmetric pupil in our pool (α&nbsp;=&nbsp;0.3539). For a continuous convex shape the
+      maximum is ⅓, reached by a triangle; rasterizing onto 128&times;128 nudges α slightly past it.
+      <span style="font-family:var(--mono)">†</span> Strehl is measured against each pupil's own
+      diffraction limit. <span style="font-family:var(--mono)">‡</span> PSF difference is
+      ½‖y−y*‖₁ ⁄ Σy, averaged over <span id="fNW">—</span> wavefronts.</p>
+    <p>The resolution target, star field and terrain are generated in code. The
+      <a href="https://hdl.handle.net/1721.3/195767" style="color:inherit">Cameraman</a> image is
+      &copy;&nbsp;MIT, used under
+      <a href="https://creativecommons.org/licenses/by-nc/4.0/" style="color:inherit">CC&nbsp;BY-NC&nbsp;4.0</a>.</p>
+    <p>Pupils and wavefronts both come from the paper's published test split. The network is the
+      published noiseless U-Net exported to fp16 ONNX — worst-case Strehl deviation from the original
+      PyTorch model is 7.0&times;10⁻⁴ over 300 held-out cases — and the forward model is a JavaScript
+      port verified against the published implementation to ~1e-14. Everything runs locally in your
+      browser; nothing is uploaded.</p>
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+<script type="module" src="./src/page.js"></script>
+</body>
+</html>
