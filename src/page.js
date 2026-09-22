@@ -236,7 +236,9 @@ function drawTrend(){
   }
   trend.forEach((v,i)=>{
     if(v===null) return;
-    const x=xs(FRAMES[i].alpha_corrected), y=ys(v), cur=i===sel;
+    /* No ladder point is 'current' when an off-ladder pupil is picked from the scatter --
+       enlarging the old slider position would claim the wrong pupil. */
+    const x=xs(FRAMES[i].alpha_corrected), y=ys(v), cur=!picked && i===sel;
     g.beginPath(); g.arc(x,y,cur?7:4,0,Math.PI*2);
     g.fillStyle=rgb(ramp(SEP,v/0.6)); g.fill();
     g.lineWidth=2; g.strokeStyle=css('--surface'); g.stroke();   /* 2px surface ring */
@@ -425,19 +427,26 @@ async function runNet(){
 }
 
 async function runNetOnce(){
-  /* Loop rather than return: if the inputs changed while we were awaiting, redo the work
-     with the current pupil instead of painting a result that is already out of date. */
+  /* One attempt per iteration. The loop exists ONLY to redo work whose inputs changed
+     while we were awaiting -- it exits on success and on error, so a failing model cannot
+     spin. netBusy belongs to runNet(); nothing in here touches it. */
   for(;;){
-  const version=inputVersion;
-  /* curMask(), not MASKS[sel] -- a pupil chosen from the scatter overrides the slider,
-     and running the network on the slider's pupil while displaying the chosen one gave
-     a Strehl, residual and corrected image that belonged to a different pupil entirely. */
-  const mask=curMask(), ph=phases[0];
-  const gt=maskedPhase(mask,ph,N);
-  const meas=simulateMeasurement(mask,gt,{N});
-  try{
-    const pred=await net.predictPhase(session,meas,mask);
-    if(version!==inputVersion) continue;            /* inputs moved on; redo with the new ones */
+    const version=inputVersion;
+    /* curMask(), not MASKS[sel] -- a pupil chosen from the scatter overrides the slider,
+       and running the network on the slider's pupil while displaying the chosen one gave
+       a Strehl, residual and corrected image belonging to a different pupil entirely. */
+    const mask=curMask(), ph=phases[0];
+    const gt=maskedPhase(mask,ph,N);
+    const meas=simulateMeasurement(mask,gt,{N});
+    let pred;
+    try{
+      pred=await net.predictPhase(session,meas,mask);
+    }catch(e){
+      setNetState('err','inference failed'); console.error('[net] inference:',e);
+      return;
+    }
+    if(version!==inputVersion) continue;   /* superseded while awaiting: redo, do not paint */
+    try{
     const res=net.residual(gt,pred,mask);
     const predM=maskedPhase(mask,Float64Array.from(pred),N);
 
@@ -478,10 +487,13 @@ async function runNetOnce(){
     if($('vSsim'))  $('vSsim').textContent=sq.toFixed(3);
 
     netCells().forEach(c=>c.classList.remove('pending'));
-  }catch(e){
-    setNetState('err','inference failed'); console.error('[net] inference:',e);
-  }finally{ netBusy=false; }
+    }catch(e){
+      setNetState('err','render failed'); console.error('[net] render:',e);
+    }
+    return;
+  }
 }
+
 /* Field of view is set by the SCENE size, not by touching the PSF.
    An earlier version shrank the PSF on its own 128 grid to widen the field. That was
    wrong: at 3x the circle's diffraction core falls to ~1 px FWHM, below what the grid
