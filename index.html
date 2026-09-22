@@ -177,8 +177,12 @@ input[type=range]{accent-color:var(--pupil);height:20px;display:block;margin:0}
   border-color:var(--pupil);color:var(--pupil)}
 .seg:focus-visible{outline:2px solid var(--pupil);outline-offset:2px}
 
-.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-@media(max-width:520px){ .shots{grid-template-columns:1fr} }
+/* Tiles must stay wide enough for the loading overlay to sit inside one of them -- at
+   ~150px the explanation and button spilled over the caption. A fixed breakpoint cannot
+   express that, because the scene picker beside this grid also takes width; auto-fit with
+   a floor drops to fewer columns whenever the space genuinely is not there. */
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:9px}
+@media(max-width:520px){ .shots{grid-template-columns:1fr;max-width:420px;margin-inline:auto} }
 .shot{display:flex;flex-direction:column;gap:4px;min-width:0;position:relative}
 .shot canvas{width:100%;aspect-ratio:1;display:block;border-radius:7px;background:var(--sunk);
   border:1px solid var(--line)}
@@ -190,8 +194,16 @@ input[type=range]{accent-color:var(--pupil);height:20px;display:block;margin:0}
 .shot.bad .nm{color:var(--s-lo)} .shot.good .nm{color:var(--s-hi)}
 .shot .q{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
 .shot .gate{position:absolute;left:0;right:0;top:0;bottom:22px;display:grid;place-items:center;
-  border-radius:7px;background:color-mix(in srgb,var(--sunk) 90%,transparent);text-align:center;padding:12px}
-.shot .gate p{margin:0 0 8px;font-size:11.5px;color:var(--muted);max-width:24ch}
+  border-radius:7px;background:color-mix(in srgb,var(--sunk) 92%,transparent);text-align:center;
+  padding:10px;overflow:auto}
+.shot .gate > div{max-width:100%}
+.shot .gate p{margin:0 0 8px;font-size:11.5px;color:var(--muted);max-width:26ch;
+  margin-inline:auto;text-wrap:pretty}
+@media(max-width:380px){
+  .shot .gate{padding:7px}
+  .shot .gate p{font-size:10.5px;margin-bottom:6px}
+  .mload{padding:6px 10px;font-size:10px}
+}
 .mload{font-family:var(--cond);font-weight:600;font-size:11px;letter-spacing:.06em;
   text-transform:uppercase;padding:7px 13px;border-radius:6px;border:1px solid var(--pupil);
   background:var(--pupil);color:#fff;cursor:pointer}
@@ -318,7 +330,27 @@ footer p{margin:0 0 6px}
 .sslider input[type=range]{width:100%}
 .sfig{display:flex;flex-direction:column;min-width:52px;flex:0 0 auto}
 .sfig .v{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;line-height:1.15}
-@media(max-width:620px){ .stickybar .sfig:nth-of-type(2){display:none} }
+/* Narrow: two rows. The slider drops to its own full-width line and the readouts sit
+   with the button above it, so everything stays on screen and reachable. The old rule
+   here used :nth-of-type(2), which counts every sibling div rather than every .sfig --
+   it matched the wrong element and hid nothing useful. Explicit classes instead. */
+.stickybar{flex-wrap:wrap}
+@media(max-width:760px){
+  .stickybar{gap:7px 12px;padding:7px 10px}
+  .scur{padding-right:10px}
+  .scurtxt{display:none}                    /* the thumbnail still identifies the pupil */
+  .sslider{order:5;flex:1 1 100%;min-width:0}
+  .sfig-pct{display:none}                   /* alpha and Strehl are the load-bearing two */
+  .sfig{min-width:0}
+  .sfig .v{font-size:14px}
+  .stickybar .btn{padding:5px 9px;font-size:10px}
+}
+@media(max-width:400px){
+  .stickybar{gap:6px 8px;padding:6px 8px}
+  .stickybar canvas{width:32px;height:32px}
+  .sfig .v{font-size:13px}
+  .stickybar .btn{padding:5px 7px;font-size:9.5px;letter-spacing:.03em}
+}
 
 /* population scatter */
 .scwrap{position:relative}
@@ -373,9 +405,9 @@ footer p{margin:0 0 6px}
         <input type="range" id="rAlpha2" min="0" max="24" step="1" value="0"
                aria-label="Pupil along the asymmetry ladder">
       </div>
-      <div class="sfig"><span class="k" style="letter-spacing:0"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 0 0 10z" fill="currentColor" stroke="none"/></svg><span style="text-transform:none;font-family:var(--mono);font-size:11px">α</span></span><span class="v" id="sAlpha">—</span></div>
-      <div class="sfig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 1 4.33 7.5L7 7z" fill="currentColor" stroke="none"/></svg>Asymmetry&nbsp;%</span><span class="v" id="sPct">—</span></div>
-      <div class="sfig"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12h2.6L6 3l2.4 9H13"/></svg>Correction (Strehl)</span><span class="v" id="sStrehl">—</span></div>
+      <div class="sfig sfig-alpha"><span class="k" style="letter-spacing:0"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 0 0 10z" fill="currentColor" stroke="none"/></svg><span style="text-transform:none;font-family:var(--mono);font-size:11px">α</span></span><span class="v" id="sAlpha">—</span></div>
+      <div class="sfig sfig-pct"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"/><path d="M7 2a5 5 0 0 1 4.33 7.5L7 7z" fill="currentColor" stroke="none"/></svg>Asymmetry&nbsp;%</span><span class="v" id="sPct">—</span></div>
+      <div class="sfig sfig-strehl"><span class="k"><svg class="mi" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12h2.6L6 3l2.4 9H13"/></svg>Correction (Strehl)</span><span class="v" id="sStrehl">—</span></div>
       <button class="btn" id="bSeed2">New aberration</button>
     </div>
 

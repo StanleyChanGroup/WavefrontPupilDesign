@@ -93,6 +93,18 @@ console.log(`ORT import ${ortImportMs.toFixed(1)} ms | model ${handle.bytes} B `
 console.log(`IO: ${handle.inputName} -> ${handle.outputName}`);
 
 /* ---------- read the reference cases ---------- */
+/* The fixtures are PyTorch output, so they cannot be regenerated from this repo alone --
+   they need the published checkpoint and the reference script. Say so plainly instead of
+   dying on ENOENT, and exit 2 so a runner can tell "not run" from "failed". */
+try { statSync(CASES_JSON); statSync(CASES_BIN); }
+catch {
+  console.error(`net_verify: fixtures not found at ${SCRATCH}`);
+  console.error('  Needed: cases.json + cases.bin, written by the PyTorch reference script');
+  console.error('  (see test/NET_VERIFICATION.md). Point at them with NET_VERIFY_DIR=<dir>');
+  console.error('  or pass the path: node test/net_verify.mjs <cases.json>');
+  process.exit(2);
+}
+
 const meta = JSON.parse(readFileSync(CASES_JSON, 'utf8'));
 const bin = readFileSync(CASES_BIN);
 const REC = N2 * (1 + 8 + 4 + 4);

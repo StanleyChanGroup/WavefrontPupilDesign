@@ -175,20 +175,40 @@ FRAMES.forEach((f,i)=>{
 
 /* ---------- decomposition hover ---------- */
 const tip=$('tip');
-$('cDec').addEventListener('mousemove',e=>{
+/* One routine for both pointers. Touch gets a tap-to-pin behaviour: the label stays until
+   you tap elsewhere, because a finger cannot hover. */
+let decPinned=false;
+function decDetailAt(clientX,clientY){
   const cv=$('cDec'), r=cv.getBoundingClientRect(), W=cv.width;
-  const gx=(e.clientX-r.left)/r.width*W, gy=(e.clientY-r.top)/r.height*W;
+  const gx=(clientX-r.left)/r.width*W, gy=(clientY-r.top)/r.height*W;
   const g=cv.getContext('2d'), sh=curShape(), {sy,sx}=alignShift(curMask());
   path(g,sh,W); const inP=g.isPointInPath(gx,gy);
   path(g,sh,W,sx,sy,true); const inF=g.isPointInPath(gx,gy);
-  let txt=null;
-  if(inP&&inF) txt='symmetric — overlaps its own flip';
-  else if(inP)  txt='asymmetric — this is what breaks the degeneracy';
-  if(txt){ tip.textContent=txt; tip.classList.add('on');
-    tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-28)+'px'; }
-  else tip.classList.remove('on');
+  if(inP&&inF) return 'symmetric — overlaps its own flip';
+  if(inP)      return 'asymmetric — this is what breaks the degeneracy';
+  return null;
+}
+function showTip(txt,x,y){
+  if(!txt){ tip.classList.remove('on'); return; }
+  tip.textContent=txt; tip.classList.add('on');
+  const w=tip.offsetWidth||180;
+  tip.style.left=Math.max(6,Math.min(innerWidth-w-6,x+12))+'px';
+  tip.style.top=Math.max(6,y-30)+'px';
+}
+$('cDec').addEventListener('mousemove',e=>{
+  if(decPinned) return;                       /* a tap has pinned a label; leave it */
+  showTip(decDetailAt(e.clientX,e.clientY),e.clientX,e.clientY);
 });
-$('cDec').addEventListener('mouseleave',()=>tip.classList.remove('on'));
+$('cDec').addEventListener('mouseleave',()=>{ if(!decPinned) showTip(null); });
+$('cDec').addEventListener('pointerup',e=>{
+  if(e.pointerType==='mouse') return;          /* mouse already has hover */
+  const txt=decDetailAt(e.clientX,e.clientY);
+  decPinned=!!txt; showTip(txt,e.clientX,e.clientY);
+});
+/* tapping anywhere else dismisses a pinned label */
+document.addEventListener('pointerdown',e=>{
+  if(decPinned && e.target!==$('cDec')){ decPinned=false; showTip(null); }
+},true);
 
 /* ---------- trend chart ---------- */
 /* The canvas must match its displayed box or everything inside it is scaled
@@ -652,17 +672,14 @@ buildTrend();
   }
   window.redrawScatter=render;
 
-  cv.addEventListener('mousemove',e=>{
-    if(!geom) return;
-    const r=cv.getBoundingClientRect();
-    const i=Scat.pick(geom,e.clientX-r.left,e.clientY-r.top);
-    if(i===hover) return;
-    hover=i; render();
+  /* One routine renders the detail card; hover and tap both call it. On touch the card is
+     pinned (a finger cannot hover) and the tap also selects that pupil, so the gesture
+     does something rather than just previewing. */
+  function showDetail(i, clientX, clientY){
     const box=$('scHover');
     if(i==null){ box.hidden=true; return; }
     const d=Scat.get();
-    Scat.drawShape($('scShape'),i,Plasma.forAlpha(Scat.get().alpha[i]),css('--sunk'),Plasma.outline(isDark()));
-    /* Order matches the axis toggles, with the axis currently on screen marked. */
+    Scat.drawShape($('scShape'),i,Plasma.forAlpha(d.alpha[i]),css('--sunk'),Plasma.outline(isDark()));
     const mark=f=>f===field?' style="color:var(--pupil)"':'';
     $('scVals').innerHTML=
       `α <b>${d.alpha[i].toFixed(4)}</b><br>`+
@@ -671,19 +688,14 @@ buildTrend();
       `<span${mark('psfdiff')}>PSF diff <b${mark('psfdiff')}>${d.psfdiff[i].toFixed(3)}</b></span><br>`+
       `throughput <b>${(d.thru[i]*100).toFixed(0)}%</b>`;
     box.hidden=false;
-    const w=box.offsetWidth||170, h=box.offsetHeight||70;
-    const x=e.clientX-r.left, y=e.clientY-r.top;
+    const r=cv.getBoundingClientRect();
+    const w=box.offsetWidth||170, h=box.offsetHeight||90;
+    const x=clientX-r.left, y=clientY-r.top;
     box.style.left=Math.max(4,Math.min(r.width-w-4, x+14))+'px';
     box.style.top =Math.max(4,Math.min(r.height-h-4, y-h-10))+'px';
-  });
-  cv.addEventListener('mouseleave',()=>{ hover=null; $('scHover').hidden=true; render(); });
+  }
 
-  /* click a dot -> make that pupil the live one. Needs its exact published mask. */
-  cv.addEventListener('click',async e=>{
-    if(!geom) return;
-    const r=cv.getBoundingClientRect();
-    const i=Scat.pick(geom,e.clientX-r.left,e.clientY-r.top);
-    if(i==null) return;
+  async function selectPupil(i){
     if(!Scat.masksReady()){
       $('scNote').textContent='loading pupil masks (3 MB)…';
       try{ await Scat.loadMasks(); }
@@ -692,14 +704,36 @@ buildTrend();
     const d=Scat.get();
     picked={ id:i, mask:Scat.maskOf(i), shape:{kind:'poly',pts:pairs(Scat.shapeOf(i))},
              alpha:d.alpha[i], thru:d.thru[i] };
-    $('scNote').textContent=`showing test pupil #${i} — click another, or move the slider to go back`;
+    $('scNote').textContent=`showing pupil ${i} — pick another, or move the slider to go back`;
     update();
-    /* the floating bar rides along through this section, so the change is visible right
-       here -- pulse it rather than yanking the page back to the top */
     const bar=$('sticky');
     if(bar){ bar.classList.remove('flash'); void bar.offsetWidth; bar.classList.add('flash'); }
-  });
+  }
   function pairs(flat){ const o=[]; for(let k=0;k<flat.length;k+=2) o.push([flat[k],flat[k+1]]); return o; }
+
+  let pinned=false;
+  cv.addEventListener('mousemove',e=>{
+    if(!geom||pinned) return;
+    const r=cv.getBoundingClientRect();
+    const i=Scat.pick(geom,e.clientX-r.left,e.clientY-r.top);
+    if(i===hover) return;
+    hover=i; render(); showDetail(i,e.clientX,e.clientY);
+  });
+  cv.addEventListener('mouseleave',()=>{ if(!pinned){ hover=null; $('scHover').hidden=true; render(); } });
+
+  cv.addEventListener('pointerup',async e=>{
+    if(!geom) return;
+    const r=cv.getBoundingClientRect();
+    const i=Scat.pick(geom, e.clientX-r.left, e.clientY-r.top, e.pointerType==='mouse'?14:22);
+    if(i==null){ if(pinned){ pinned=false; hover=null; $('scHover').hidden=true; render(); } return; }
+    hover=i; pinned=e.pointerType!=='mouse';    /* touch pins; mouse keeps hovering */
+    render(); showDetail(i,e.clientX,e.clientY);
+    await selectPupil(i);
+  });
+  /* dismiss a pinned card by tapping away */
+  document.addEventListener('pointerdown',e=>{
+    if(pinned && e.target!==cv){ pinned=false; hover=null; $('scHover').hidden=true; render(); }
+  },true);
 
   const AXES=[['sfLoss','loss'],['sfDiff','psfdiff'],['sfStrehl','strehl']];
   for(const [id,f] of AXES){
