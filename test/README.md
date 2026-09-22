@@ -51,9 +51,18 @@ loads page.js.
 
 The scheduler checks are mutation-tested: breaking the version check, the re-run after
 completion, the failure exit, or making it always re-run each causes a failure or a hang.
-That sweep found a gap -- the re-run in `finally` matters only when a change lands during
-`commit` and its debounce timer is then cancelled by `flush()`; every simpler case is
-absorbed by the retry loop or the pending timer. That exact window is now a test.
+That sweep found two gaps, both about work the scheduler does rather than results it
+shows:
+
+* The re-run in `finally` matters only when a change lands during `commit` and its
+  debounce timer is then cancelled by `flush()`; every simpler case is absorbed by the
+  retry loop or the pending timer.
+* The debounce timer must check `version !== settled`, not just `!busy`. With a long
+  debounce and a fast predictor the retry settles first and the stale timer would
+  re-predict inputs that were just committed.
+
+Both windows are now tests, and both depend on timing: one needs the predictor to outlive
+the debounce, the other the reverse. A single timing regime tests neither.
 
 ## Page syntax
 

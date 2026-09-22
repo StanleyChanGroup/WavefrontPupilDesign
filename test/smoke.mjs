@@ -226,6 +226,33 @@ const settle = ms => new Promise(r => setTimeout(r, ms));
     committed[committed.length - 1] === 'C', `committed ${committed.join(',')}`);
 }
 
+{ /* Timing mirror of the redundancy test above: there the predictor outlives the
+     debounce, so the pending timer fires while busy and no-ops. Here the debounce is long
+     and the predictor fast, so the RETRY settles first and the timer is still pending
+     afterwards. A timer that checks only !busy then starts a second prediction for inputs
+     that were just committed. */
+  let current = 'A';
+  const committed = [];
+  let predictions = 0;
+  const q = createScheduler({
+    debounceMs: 200,
+    gather: () => ({ pupil: current }),
+    predict: async () => { predictions++; await new Promise(r => setTimeout(r, 20)); return 'r'; },
+    commit: (_r, inputs) => committed.push(inputs.pupil),
+    onError: () => {},
+  });
+  q.schedule();
+  await settle(205);              // the attempt is running, predictor takes 20 ms
+  current = 'B';
+  q.schedule();                   // absorbed by the retry; its timer is still pending
+  await settle(80);
+  const afterRetry = predictions;
+  await settle(400);              // let the stale timer fire
+  check('a stale debounce timer does not re-predict settled inputs',
+    predictions === afterRetry && committed.join(',') === 'B',
+    `${afterRetry} -> ${predictions} predictions, committed ${committed.join(',')}`);
+}
+
 { /* The one window only the re-run in finally covers, found by mutation testing:
      a change that lands DURING commit (so the retry loop has already passed its version
      check) whose debounce timer is then cancelled by flush(). Nothing else is left to

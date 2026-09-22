@@ -43,7 +43,10 @@ export function createScheduler(o) {
     version++;
     onPending();
     clearTimer(timer);
-    timer = setTimer(() => { if (!busy) start(); }, debounceMs);
+    /* The timer must ask whether there is still work, not just whether we are free. If the
+       in-flight attempt's retry already absorbed and settled this change, a timer left over
+       from it would start a second prediction for inputs that were just committed. */
+    timer = setTimer(() => { if (!busy && version !== settled) start(); }, debounceMs);
   }
 
   async function start() {
@@ -74,7 +77,12 @@ export function createScheduler(o) {
 
   return {
     schedule,
-    /** Run now, skipping the debounce. */
+    /**
+     * Run now, skipping the debounce -- and deliberately skipping the version check too.
+     * loadNet() calls this once a session exists, at which point `settled` may already
+     * equal `version` from the 'model not loaded' rejection, so a guarded call would do
+     * nothing. flush() means "run regardless".
+     */
     flush() { clearTimer(timer); if (!busy) start(); },
     get busy() { return busy; },
     get version() { return version; },
