@@ -8,6 +8,7 @@ import { testCoeffs, N_TEST_PHASES } from './phasedata.js';
 import * as net from './net.js';
 import * as Scat from './scatter.js';
 import * as Plasma from './plasma.js';
+import { createScheduler } from './netqueue.js';
 import { CAMERAMAN_B64, CAMERAMAN_SIZE, CAMERAMAN_CREDIT } from './cameramandata.js';
 import * as Scene from './scene.js';
 const { convolvePsf, psnr, ssim } = Scene;
@@ -106,7 +107,7 @@ let picked=null;                 // {id, mask, shape, alpha, thru, area}
 const curMask =()=> picked ? picked.mask  : MASKS[sel];
 const curShape=()=> picked ? picked.shape : SHAPES[sel];
 const curName =()=> picked ? ('pupil '+picked.id) : FRAMES[sel].name;
-let session=null, netBusy=false, netTimer=null, inputVersion=0, netQueued=false;
+let session=null;   /* the ORT session; scheduling state lives in netqueue.js */
 const SCENE_N=512;
 let userImg=null;
 /* convolvePsf is circular, so an image that does not tile wraps its own edges back in.
@@ -384,7 +385,7 @@ async function loadNet(){
     });
     setNetState('on',`ready · ${((performance.now()-t0)/1000).toFixed(1)} s`);
     netCells().forEach(c=>c.classList.remove('idle'));
-    runNet();
+    netq.flush();   /* run now that a session exists */
     return session;
   }catch(e){
     setNetState('err','model failed to load');
@@ -397,56 +398,28 @@ function clearNetReadouts(){
   for(const id of NET_READOUTS){ const e=$(id); if(e){ e.textContent='—'; e.style.color=''; } }
   for(const id of ['scBar','scBefBar']){ const e=$(id); if(e) e.style.width='0%'; }
 }
-function scheduleNet(){
-  /* Every input change bumps the version. Anything already in flight is now stale, and
-     will be thrown away rather than painted under a pupil it does not belong to. */
-  inputVersion++;
-  clearNetReadouts();
-  if(!session) return;
-  clearTimeout(netTimer);
-  netCells().forEach(c=>c.classList.add('pending'));
-  netTimer=setTimeout(()=>{
-    /* If inference is still running we cannot start another -- ORT serialises on the
-       session anyway -- so record that one is owed. The running call picks it up when it
-       finishes. Previously this branch simply returned, the request was lost, and the
-       older result then painted itself under the newer pupil. */
-    if(netBusy){ netQueued=true; return; }
-    runNet();
-  },180);
-}
-
-async function runNet(){
-  if(!session) return;
-  if(netBusy){ netQueued=true; return; }
-  netBusy=true;
-  try{ await runNetOnce(); }
-  finally{
-    netBusy=false;
-    if(netQueued){ netQueued=false; runNet(); }
-  }
-}
-
-async function runNetOnce(){
-  /* One attempt per iteration. The loop exists ONLY to redo work whose inputs changed
-     while we were awaiting -- it exits on success and on error, so a failing model cannot
-     spin. netBusy belongs to runNet(); nothing in here touches it. */
-  for(;;){
-    const version=inputVersion;
-    /* curMask(), not MASKS[sel] -- a pupil chosen from the scatter overrides the slider,
-       and running the network on the slider's pupil while displaying the chosen one gave
-       a Strehl, residual and corrected image belonging to a different pupil entirely. */
+/* The scheduling rules live in netqueue.js so they can be tested against the real code
+   rather than a copy. This supplies only what is specific to the page. */
+const netq = createScheduler({
+  debounceMs: 180,
+  onPending(){
+    /* Blank the numbers the moment the pupil changes: leaving them up attributes the
+       previous pupil's Strehl to the new one until inference finishes, and if the model
+       is not loaded at all it would sit there indefinitely. */
+    clearNetReadouts();
+    if(session) netCells().forEach(c=>c.classList.add('pending'));
+  },
+  gather(){
+    /* curMask(), not MASKS[sel] -- a pupil picked from the scatter overrides the slider. */
     const mask=curMask(), ph=phases[0];
     const gt=maskedPhase(mask,ph,N);
-    const meas=simulateMeasurement(mask,gt,{N});
-    let pred;
-    try{
-      pred=await net.predictPhase(session,meas,mask);
-    }catch(e){
-      setNetState('err','inference failed'); console.error('[net] inference:',e);
-      return;
-    }
-    if(version!==inputVersion) continue;   /* superseded while awaiting: redo, do not paint */
-    try{
+    return { mask, gt, meas:simulateMeasurement(mask,gt,{N}) };
+  },
+  predict({mask,meas}){
+    if(!session) return Promise.reject(new Error('model not loaded'));
+    return net.predictPhase(session,meas,mask);
+  },
+  commit(pred,{mask,gt}){
     const res=net.residual(gt,pred,mask);
     const predM=maskedPhase(mask,Float64Array.from(pred),N);
 
@@ -487,12 +460,13 @@ async function runNetOnce(){
     if($('vSsim'))  $('vSsim').textContent=sq.toFixed(3);
 
     netCells().forEach(c=>c.classList.remove('pending'));
-    }catch(e){
-      setNetState('err','render failed'); console.error('[net] render:',e);
-    }
-    return;
-  }
-}
+  },
+  onError(e){
+    if(String(e && e.message)==='model not loaded') return;   /* expected before loading */
+    setNetState('err','inference failed'); console.error('[net]',e);
+  },
+});
+function scheduleNet(){ netq.schedule(); }
 
 /* Field of view is set by the SCENE size, not by touching the PSF.
    An earlier version shrank the PSF on its own 128 grid to widen the field. That was

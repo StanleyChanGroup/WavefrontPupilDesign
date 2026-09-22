@@ -130,50 +130,133 @@ const alpha = byId.get('hAlpha');
 check('asymmetry readout is filled', !!alpha && /\d/.test(alpha.textContent),
   alpha ? `"${alpha.textContent}"` : 'missing');
 
-/* ---------- 2. the scheduler, with a slow prediction ---------- */
-/* Mirrors page.js's runNet/runNetOnce contract exactly. A pupil selected DURING an
-   in-flight prediction must be the one whose result is displayed. */
+/* ---------- 2. the REAL scheduler from src/netqueue.js ---------- */
+/* Previously this section reimplemented the scheduler, so it could only ever test its own
+   copy. It now imports the production module and drives it with a mock predictor, which
+   is what makes a future regression in the real code fail here. */
 
-function scheduler() {
-  let busy = false, timer = null, version = 0, queued = false, painted = null, current = 'A';
-  const delay = ms => new Promise(r => setTimeout(r, ms));
-  async function once() {
-    for (;;) {
-      const v = version, mine = current;
-      await delay(120);
-      if (v !== version) continue;
-      painted = mine;
-      return;
-    }
-  }
-  async function run() {
-    if (busy) { queued = true; return; }
-    busy = true;
-    try { await once(); }
-    finally { busy = false; if (queued) { queued = false; run(); } }
-  }
+const { createScheduler } = await import(join(ROOT, 'src/netqueue.js'));
+
+function harness({ latency = 120, failOn = null } = {}) {
+  let current = 'A';
+  const committed = [];
+  let predictions = 0;
+  const q = createScheduler({
+    debounceMs: 20,
+    gather: () => ({ pupil: current }),
+    predict: async (inputs) => {
+      predictions++;
+      await new Promise(r => setTimeout(r, latency));
+      if (failOn && inputs.pupil === failOn) throw new Error('mock failure');
+      return 'result-for-' + inputs.pupil;
+    },
+    commit: (result, inputs) => committed.push({ result, pupil: inputs.pupil }),
+    onError: () => {},
+  });
   return {
-    select(p) { current = p; version++; clearTimeout(timer);
-      timer = setTimeout(() => { if (busy) { queued = true; return; } run(); }, 20); },
-    get painted() { return painted; }, get current() { return current; },
+    select(p) { current = p; q.schedule(); },
+    get last() { return committed.length ? committed[committed.length - 1] : null; },
+    get committed() { return committed; },
+    get predictions() { return predictions; },
+    get current() { return current; },
+    q,
   };
 }
+const settle = ms => new Promise(r => setTimeout(r, ms));
 
-{
-  const s = scheduler();
-  s.select('A');
-  await new Promise(r => setTimeout(r, 40));    // A is mid-flight
-  s.select('B');                                 // switch during inference
-  await new Promise(r => setTimeout(r, 700));
-  check('pupil changed during inference -> latest wins', s.painted === s.current,
-    `selected ${s.current}, painted ${s.painted}`);
+{ // change during inference -> the later pupil wins
+  const h = harness();
+  h.select('A');
+  await settle(60);                 // A is mid-flight
+  h.select('B');
+  await settle(600);
+  check('change during inference -> latest pupil committed',
+    h.last && h.last.pupil === 'B', `committed ${h.last && h.last.pupil}`);
+  check('the superseded result is never committed',
+    !h.committed.some(c => c.pupil === 'A'),
+    h.committed.map(c => c.pupil).join(',') || 'nothing');
 }
-{
-  const s = scheduler();
-  for (const p of ['A', 'B', 'C', 'D']) { s.select(p); await new Promise(r => setTimeout(r, 30)); }
-  await new Promise(r => setTimeout(r, 900));
-  check('rapid successive changes -> last one wins', s.painted === 'D',
-    `painted ${s.painted}`);
+
+{ // the redundancy the reviewer found: absorbing a request must not cause a second run
+  const h = harness();
+  h.select('A');
+  await settle(60);
+  h.select('B');                    // absorbed by the in-flight attempt's retry
+  await settle(800);
+  check('a superseded request does not trigger a redundant prediction',
+    h.predictions === 2, `${h.predictions} predictions (A, then the B retry)`);
+}
+
+{ // rapid changes -> exactly one commit, for the last pupil
+  const h = harness();
+  for (const p of ['A', 'B', 'C', 'D']) { h.select(p); await settle(8); }
+  await settle(900);
+  check('rapid successive changes -> last one wins',
+    h.last && h.last.pupil === 'D', `committed ${h.committed.map(c => c.pupil).join(',')}`);
+}
+
+{ // a failing predictor must not spin
+  const h = harness({ failOn: 'A' });
+  h.select('A');
+  await settle(600);
+  check('a failing prediction stops instead of looping',
+    h.predictions === 1 && !h.q.busy, `${h.predictions} prediction(s), busy=${h.q.busy}`);
+}
+
+{ /* A request landing DURING commit -- after the version check passed, before busy
+     clears -- cannot be absorbed by the retry loop, so only the re-run in finally can
+     serve it. Mutation testing found this path untested: deleting that re-run left every
+     other check passing. */
+  let fired = false;
+  let current = 'A';
+  const committed = [];
+  const q = createScheduler({
+    debounceMs: 20,
+    gather: () => ({ pupil: current }),
+    predict: async () => { await new Promise(r => setTimeout(r, 60)); return 'r'; },
+    commit: (_r, inputs) => {
+      committed.push(inputs.pupil);
+      if (!fired) { fired = true; current = 'C'; q.schedule(); }   // lands mid-commit
+    },
+    onError: () => {},
+  });
+  q.schedule();
+  await settle(600);
+  check('a request arriving during commit is still served',
+    committed[committed.length - 1] === 'C', `committed ${committed.join(',')}`);
+}
+
+{ /* The one window only the re-run in finally covers, found by mutation testing:
+     a change that lands DURING commit (so the retry loop has already passed its version
+     check) whose debounce timer is then cancelled by flush(). Nothing else is left to
+     serve it. Every simpler "changed while busy" case is absorbed by the retry loop or
+     picked up by the pending timer, which is why removing the re-run passed all of them. */
+  let current = 'A';
+  const committed = [];
+  const q = createScheduler({
+    debounceMs: 20,
+    gather: () => ({ pupil: current }),
+    predict: async () => { await new Promise(r => setTimeout(r, 80)); return 'r'; },
+    commit: (_r, inputs) => {
+      committed.push(inputs.pupil);
+      if (committed.length === 1) { current = 'Z'; q.schedule(); q.flush(); }
+    },
+    onError: () => {},
+  });
+  q.schedule();
+  await settle(600);
+  check('a change during commit with its timer cancelled is still served',
+    committed[committed.length - 1] === 'Z', `committed ${committed.join(',')}`);
+}
+
+{ // a change arriving AFTER a commit must still run
+  const h = harness();
+  h.select('A');
+  await settle(400);                // A committed
+  h.select('B');
+  await settle(400);
+  check('a change after completion still runs',
+    h.last && h.last.pupil === 'B', `committed ${h.committed.map(c => c.pupil).join(',')}`);
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL CHECKS PASSED');

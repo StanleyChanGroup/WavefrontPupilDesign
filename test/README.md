@@ -45,9 +45,15 @@ generator script is open work.
 
     node test/smoke.mjs
 
-Boots `src/page.js` against a DOM stub and checks it initialises, the pupil track builds,
-readouts populate, and the inference scheduler ends on the last-selected pupil when the
-selection changes mid-prediction. No other harness loads page.js.
+Boots `src/page.js` against a DOM stub (initialisation, pupil track, readouts), then
+drives the real scheduler from `src/netqueue.js` with a mock predictor. No other harness
+loads page.js.
+
+The scheduler checks are mutation-tested: breaking the version check, the re-run after
+completion, the failure exit, or making it always re-run each causes a failure or a hang.
+That sweep found a gap -- the re-run in `finally` matters only when a change lands during
+`commit` and its debounce timer is then cancelled by `flush()`; every simpler case is
+absorbed by the retry loop or the pending timer. That exact window is now a test.
 
 ## Page syntax
 
