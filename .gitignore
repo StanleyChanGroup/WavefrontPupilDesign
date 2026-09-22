@@ -6,9 +6,10 @@
 # fp32 reference model: only used to verify the fp16 file that actually ships
 assets/unet_fp32.onnx
 
-# golden test fixtures for the JS optics port (13.5 MB)
+# golden.npz is the bulky whole-array companion (11.8 MB). golden.json is NOT ignored:
+# it is self-sufficient and test/verify.mjs needs it, so a fresh clone can reproduce the
+# optics verification with `node test/verify.mjs --no-npz`.
 assets/golden.npz
-assets/golden.json
 
 # PNG figure sources -- the page serves the .webp beside them
 figures/*.png

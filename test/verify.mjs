@@ -51,8 +51,15 @@ const KINDS = {
 const rows = [];
 const byName = new Map();
 
+/* Rows whose comparisons come from golden.npz. Without it (or with --no-npz) they do not
+   run, and that is expected rather than a lost stage. Listed explicitly: matching on the
+   name was a heuristic and it missed the two unet rows, which read NPZ.pred_unet_f32
+   without saying so in their label. */
+const NPZ_ROWS = new Set(['unet strehl vs torch_f32', 'unet mse vs torch_f32']);
+
 function track(stage, name, kind, tol, src, gate = true) {
-  const r = { stage, name, kind, tol, src, gate, worst: 0, where: '-', n: 0, notes: [] };
+  const needsNpz = NPZ_ROWS.has(name) || /npz|whole-array|full array/i.test(name);
+  const r = { stage, name, kind, tol, src, gate, needsNpz, worst: 0, where: '-', n: 0, notes: [] };
   rows.push(r);
   byName.set(name, r);
   return r;
@@ -965,7 +972,10 @@ const failedRows = table.filter((t) => !t.ok);
    emptying a golden section (e.g. G.zernike_spot_checks.modes) drops its rows from
    BOTH the report and the verdict, and the harness still prints ALL CHECKS PASSED
    with a quietly smaller comparison count. Audit finding P-1. */
-const emptyRows = rows.filter((r) => r.n === 0);
+/* A row that never ran is a silently lost stage -- but rows that depend on golden.npz
+   are legitimately skipped when it is absent or --no-npz is passed. Only treat a row as
+   lost if the data it needs was actually available. */
+const emptyRows = rows.filter((r) => r.n === 0 && !(r.needsNpz && !NPZ));
 if (emptyRows.length) {
   console.log('\n--- tracked quantities that never executed ---');
   for (const r of emptyRows) console.log(`  stage ${r.stage}  ${r.name}   (expected comparisons, got 0)`);

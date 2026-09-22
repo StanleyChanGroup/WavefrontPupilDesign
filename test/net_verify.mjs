@@ -30,7 +30,10 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = normalize(join(HERE, '..'));
-const SCRATCH = '/tmp/claude-979489/-depot-chan129-users-aalmuall/63a2bda4-40f1-435b-960c-8ea418acfc7a/scratchpad';
+// Where the PyTorch-side fixtures live. Override with NET_VERIFY_DIR; defaults to a
+// directory beside this file so a fresh clone works without editing anything.
+const SCRATCH = process.env.NET_VERIFY_DIR
+  || new URL('./fixtures/', import.meta.url).pathname;
 const CASES_JSON = process.argv[2] ?? join(SCRATCH, 'cases.json');
 const CASES_BIN = CASES_JSON.replace(/\.json$/, '.bin');
 const OUT_JSON = process.argv[3] ?? join(SCRATCH, 'net_verify.json');

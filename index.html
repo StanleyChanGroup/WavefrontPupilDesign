@@ -438,8 +438,8 @@ footer p{margin:0 0 6px}
             <canvas id="cSceneC" width="340" height="340"></canvas>
             <div class="hd"><span class="nm">Corrected</span><span class="q" id="vPsnrC">—</span></div>
             <div class="gate" id="gate">
-              <div><p>Correction runs the trained network in your browser.</p>
-                <button class="mload" id="bLoad">Load model · 15 MB</button></div>
+              <div><p>Correction runs the trained network in your browser — 15&nbsp;MB of weights plus a 14&nbsp;MB runtime, fetched once.</p>
+                <button class="mload" id="bLoad">Load model · 29 MB</button></div>
             </div>
           </div>
         </div>
@@ -474,7 +474,7 @@ footer p{margin:0 0 6px}
   <section>
     <div class="shead">
       <h2>What the network sees</h2>
-      <p>Only the aberrated intensity is measured. Everything else is inferred.</p>
+      <p>The network is given two things: the measured intensity and the pupil geometry, which is known because we built the aperture. Only the wavefront is inferred.</p>
     </div>
     <div class="panel">
       <div class="pipescroll"><div class="pipe">
@@ -489,8 +489,8 @@ footer p{margin:0 0 6px}
           <span class="val">Corrected PSF (by-product)</span></div>
 
         <div class="rlab">Wavefront</div>
-        <div class="cell"><canvas id="cFlat" width="130" height="130"></canvas>
-          <span class="val">Ideal wavefront (binary mask)</span></div>
+        <div class="cell io-in"><canvas id="cFlat" width="130" height="130"></canvas>
+          <span class="tag">Input: pupil mask (known)</span></div>
         <div class="cell"><canvas id="cPhase" width="130" height="130"></canvas>
           <span class="val">Ground truth wavefront (not observed)</span></div>
         <div class="cell io-out net"><canvas id="cPredW" width="130" height="130"></canvas>

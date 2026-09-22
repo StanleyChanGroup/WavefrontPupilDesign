@@ -99,14 +99,14 @@ const PHASES=()=>phaseIndices(seedBase).map(i=>synthPhase(testCoeffs(i),N));
 
 /* ---------- state ---------- */
 const NF=FRAMES.length;
-let sel=0, seedBase=1, phases=null, trend=new Array(NF).fill(null);
+let sel=0, seedBase=1, phases=null, trend=new Array(NF).fill(null), trendRun=0;
 /* A pupil picked from the population scatter is not on the ladder, so it overrides the
    slider selection until the slider or track is touched again. */
 let picked=null;                 // {id, mask, shape, alpha, thru, area}
 const curMask =()=> picked ? picked.mask  : MASKS[sel];
 const curShape=()=> picked ? picked.shape : SHAPES[sel];
 const curName =()=> picked ? ('pupil '+picked.id) : FRAMES[sel].name;
-let session=null, netBusy=false, netTimer=null, netToken=0;
+let session=null, netBusy=false, netTimer=null, inputVersion=0, netQueued=false;
 const SCENE_N=512;
 let userImg=null;
 /* convolvePsf is circular, so an image that does not tile wraps its own edges back in.
@@ -241,7 +241,9 @@ function drawTrend(){
     g.fillStyle=rgb(ramp(SEP,v/0.6)); g.fill();
     g.lineWidth=2; g.strokeStyle=css('--surface'); g.stroke();   /* 2px surface ring */
   });
-  const v=trend[sel];
+  /* The trend chart only holds the ladder pupils, so an off-ladder selection has no point
+     to label -- marking the old slider position would claim the wrong pupil. */
+  const v = picked ? null : trend[sel];
   if(v!==null){                                    /* direct label: current pupil only */
     const x=xs(FRAMES[sel].alpha_corrected), y=ys(v);
     g.fillStyle=css('--ink'); g.font='500 12px '+css('--mono').split(',')[0].replace(/"/g,'');
@@ -250,18 +252,24 @@ function drawTrend(){
   }
 }
 async function buildTrend(){
+  /* Snapshot the wavefronts and take a run id. Clicking "New aberration" twice used to
+     leave two loops writing into the same trend array from different phase sets, and the
+     correlation printed at the end was computed over the mixture. */
+  const run=++trendRun, myPhases=phases;
   trend=new Array(NF).fill(null);
   const order=[...Array(NF).keys()];
   for(const i of order){
     let s=0;
-    for(const ph of phases){
+    for(const ph of myPhases){
       const gt=maskedPhase(MASKS[i],ph,N), tw=maskedPhase(MASKS[i],flipPhase(ph),N);
       s+=separation(psfFromPupil(MASKS[i],gt,N), psfFromPupil(MASKS[i],tw,N));
     }
-    trend[i]=s/phases.length;
+    if(run!==trendRun) return;                    /* superseded */
+    trend[i]=s/myPhases.length;
     $('tNote').textContent=`${i+1} / ${NF} pupils · ${NW} wavefronts each`;
     drawTrend();
     await new Promise(r=>requestAnimationFrame(r));
+    if(run!==trendRun) return;
   }
   const xs=trend.map((_,i)=>FRAMES[i].alpha_corrected), ys=trend;
   const mx=xs.reduce((a,b)=>a+b)/NF, my=ys.reduce((a,b)=>a+b)/NF;
@@ -369,8 +377,8 @@ async function loadNet(){
   try{
     const t0=performance.now();
     session=await net.loadModel(net.MODEL_URL,{
-      onProgress:(got,total)=>{ if(total) setNetState('busy',
-        `downloading ${(100*got/total).toFixed(0)}%`); },
+      onProgress:({loaded,total})=>{ if(total) setNetState('busy',
+        `downloading ${(100*loaded/total).toFixed(0)}%`); },
     });
     setNetState('on',`ready · ${((performance.now()-t0)/1000).toFixed(1)} s`);
     netCells().forEach(c=>c.classList.remove('idle'));
@@ -388,19 +396,39 @@ function clearNetReadouts(){
   for(const id of ['scBar','scBefBar']){ const e=$(id); if(e) e.style.width='0%'; }
 }
 function scheduleNet(){
-  /* Blank the network's numbers the moment the pupil changes. Leaving them up means the
-     previous pupil's Strehl sits under the new one until inference finishes -- and if the
-     model is not loaded at all, it would sit there indefinitely. */
+  /* Every input change bumps the version. Anything already in flight is now stale, and
+     will be thrown away rather than painted under a pupil it does not belong to. */
+  inputVersion++;
   clearNetReadouts();
   if(!session) return;
   clearTimeout(netTimer);
   netCells().forEach(c=>c.classList.add('pending'));
-  netTimer=setTimeout(runNet,180);          /* inference is ~0.2-0.7 s: debounce, never per-tick */
+  netTimer=setTimeout(()=>{
+    /* If inference is still running we cannot start another -- ORT serialises on the
+       session anyway -- so record that one is owed. The running call picks it up when it
+       finishes. Previously this branch simply returned, the request was lost, and the
+       older result then painted itself under the newer pupil. */
+    if(netBusy){ netQueued=true; return; }
+    runNet();
+  },180);
 }
+
 async function runNet(){
-  if(!session || netBusy) return;
-  const token=++netToken;
+  if(!session) return;
+  if(netBusy){ netQueued=true; return; }
   netBusy=true;
+  try{ await runNetOnce(); }
+  finally{
+    netBusy=false;
+    if(netQueued){ netQueued=false; runNet(); }
+  }
+}
+
+async function runNetOnce(){
+  /* Loop rather than return: if the inputs changed while we were awaiting, redo the work
+     with the current pupil instead of painting a result that is already out of date. */
+  for(;;){
+  const version=inputVersion;
   /* curMask(), not MASKS[sel] -- a pupil chosen from the scatter overrides the slider,
      and running the network on the slider's pupil while displaying the chosen one gave
      a Strehl, residual and corrected image that belonged to a different pupil entirely. */
@@ -409,7 +437,7 @@ async function runNet(){
   const meas=simulateMeasurement(mask,gt,{N});
   try{
     const pred=await net.predictPhase(session,meas,mask);
-    if(token!==netToken){ netBusy=false; return scheduleNet(); }   /* a newer request won */
+    if(version!==inputVersion) continue;            /* inputs moved on; redo with the new ones */
     const res=net.residual(gt,pred,mask);
     const predM=maskedPhase(mask,Float64Array.from(pred),N);
 
@@ -628,7 +656,9 @@ buildTrend();
                   mono:css('--mono').split(',')[0].replace(/"/g,'')});
   let field='loss', geom=null, hover=null, ready=false;
   const marked=FRAMES.map(f=>f.pool_id).filter(i=>i!=null);
-  const currentPool=()=>FRAMES[sel] ? FRAMES[sel].pool_id : null;
+  /* A pupil picked from the scatter is not on the ladder, so FRAMES[sel] is not what is
+     displayed. Highlight the picked dot itself. */
+  const currentPool=()=> picked ? picked.id : (FRAMES[sel] ? FRAMES[sel].pool_id : null);
 
   function render(){
     if(!ready) return;
