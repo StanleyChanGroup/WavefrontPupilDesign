@@ -45,7 +45,7 @@ let firefox;
 try { ({ firefox } = await import('playwright')); }
 catch {
   console.error('mobile.mjs: playwright is not installed.');
-  console.error('  npm install && npx playwright install firefox');
+  console.error('  npm install && npx playwright install firefox chromium');
   console.error('  (browser tests are optional; the other suites need no dependencies)');
   process.exit(2);
 }
@@ -99,19 +99,31 @@ const escapees = p => p.evaluate(() => {
   return out.slice(0, 8);
 });
 
-const b = await firefox.launch({ headless: true });
-
-/* Chromium is only needed for the touch sections. If it is missing, say which checks did
-   not run rather than reporting a pass count that quietly excludes them. */
-let chrome = null, chromeWhy = '';
-try { const { chromium } = await import('playwright'); chrome = await chromium.launch({ headless: true }); }
-catch (e) { chromeWhy = e.message.split('\n')[0]; }
+/* Each engine is needed for a different half: Firefox for layout, Chromium for touch.
+   A missing one must name the checks it costs rather than throw a launch error or, worse,
+   report a pass count that quietly excludes them. `npx playwright install` may have been
+   run for only one of the two. */
+const { chromium } = await import('playwright');
+const launch = async eng => {
+  try { return { browser: await eng.launch({ headless: true }), why: '' }; }
+  catch (e) { return { browser: null, why: e.message.split('\n')[0].slice(0, 200) }; }
+};
+const { browser: b, why: ffWhy } = await launch(firefox);
+const { browser: chrome, why: chromeWhy } = await launch(chromium);
 let skipped = 0;
 const skip = (n, why) => { console.log(`SKIP  ${n}   ${why}`); skipped++; };
+if (!b && !chrome) {
+  console.error('mobile.mjs: no browser could be launched.');
+  console.error(`  firefox:  ${ffWhy}`);
+  console.error(`  chromium: ${chromeWhy}`);
+  console.error('  npx playwright install firefox chromium');
+  srv.close(); process.exit(2);
+}
 const settled = async p => { await p.evaluate(() => document.fonts?.ready); await p.waitForTimeout(600); };
 
 console.log('=== fresh loads ===');
-for (const w of WIDTHS) {
+if (!b) skip('all layout checks at 10 widths', `firefox unavailable: ${ffWhy}`);
+for (const w of b ? WIDTHS : []) {
   const p = await b.newPage({ viewport: { width: w, height: 900 } });
   await p.goto(base, { waitUntil: 'load' });
   await settled(p);
@@ -154,7 +166,8 @@ for (const w of WIDTHS) {
 }
 
 console.log('\n=== live resize, after interacting ===');
-{
+if (!b) skip('resize checks', `firefox unavailable: ${ffWhy}`);
+else {
   const p = await b.newPage({ viewport: { width: 390, height: 844 } });
   await p.goto(base, { waitUntil: 'load' });
   await settled(p);
@@ -317,7 +330,7 @@ else {
   await ctx.close();
 }
 
-await b.close(); if (chrome) await chrome.close(); srv.close();
+if (b) await b.close(); if (chrome) await chrome.close(); srv.close();
 if (fail) console.log(`\n${fail} FAILURE(S)${skipped ? `, ${skipped} SECTION(S) SKIPPED` : ''}`);
 else if (skipped) console.log(`\nno failures, but ${skipped} section(s) were SKIPPED -- not a full pass`);
 else console.log('\nALL MOBILE CHECKS PASSED');

@@ -74,8 +74,10 @@ no document-level horizontal overflow (before and after the sticky bar appears),
 sticky slider and "New aberration" on screen, the model-loading overlay fitting its panel
 without covering the caption, no overflow after live resizing, the scatter selection
 surviving it, tap-to-pin on the scatter, and the decomposition tooltip staying inside a
-320px viewport. Exits 2 if a browser is absent, and prints SKIP lines naming the checks that did not
-run, so a partial run cannot be mistaken for a pass.
+320px viewport. Each engine is guarded independently: if only one is installed, the sections needing the
+other print SKIP lines naming the checks that did not run and the whole harness exits 2,
+so a partial run cannot be mistaken for a pass. With neither, or with playwright itself
+absent, it reports why and exits 2 without throwing a launch error.
 
 The DOM stub in `smoke.mjs` cannot catch any of this: it has no box model, so
 `getBoundingClientRect` returns whatever it was hard-coded to return. Every mobile defect
