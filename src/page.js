@@ -191,9 +191,15 @@ function decDetailAt(clientX,clientY){
 function showTip(txt,x,y){
   if(!txt){ tip.classList.remove('on'); return; }
   tip.textContent=txt; tip.classList.add('on');
-  const w=tip.offsetWidth||180;
-  tip.style.left=Math.max(6,Math.min(innerWidth-w-6,x+12))+'px';
-  tip.style.top=Math.max(6,y-30)+'px';
+  /* clientWidth, not innerWidth: innerWidth includes the scrollbar, so on desktop the
+     clamp would allow the tip a strip of width that is not actually visible. The tip
+     wraps (see .tip in the stylesheet), so w is never wider than the viewport and the
+     Math.max floor no longer has to fight the Math.min ceiling. */
+  const de=document.documentElement;
+  const vw=de.clientWidth||innerWidth, vh=de.clientHeight||innerHeight;
+  const w=tip.offsetWidth||180, ht=tip.offsetHeight||22;
+  tip.style.left=Math.max(6,Math.min(vw-w-6,x+12))+'px';
+  tip.style.top=Math.max(6,Math.min(vh-ht-6,y-30))+'px';
 }
 $('cDec').addEventListener('mousemove',e=>{
   if(decPinned) return;                       /* a tap has pinned a label; leave it */

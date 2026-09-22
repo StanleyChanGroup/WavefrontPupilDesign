@@ -64,6 +64,37 @@ shows:
 Both windows are now tests, and both depend on timing: one needs the predictor to outlive
 the debounce, the other the reverse. A single timing regime tests neither.
 
+## Mobile layout and touch  -- needs playwright
+
+    npm install && npx playwright install firefox
+    node test/mobile.mjs
+
+Headless Firefox over a real HTTP server, at 320/360/390/430/520/540/620/700/768/1024:
+no document-level horizontal overflow (before and after the sticky bar appears), the
+sticky slider and "New aberration" on screen, the model-loading overlay fitting its panel
+without covering the caption, no overflow after live resizing, the scatter selection
+surviving it, tap-to-pin on the scatter, and the decomposition tooltip staying inside a
+320px viewport. Exits 2 if playwright is absent, so it can be skipped rather than fail.
+
+The DOM stub in `smoke.mjs` cannot catch any of this: it has no box model, so
+`getBoundingClientRect` returns whatever it was hard-coded to return. Every mobile defect
+found so far was invisible there and visible here.
+
+Scrolling *inside* the pupil track, the pipeline and the citation block is intentional.
+The overflow check ignores anything clipped by an ancestor with `overflow-x` set, so it
+measures escapes from the document rather than deliberate inner scrolling. A failing
+width prints the offending elements, not just a number.
+
+Two checks here are mutation-tested against the defects that prompted them:
+
+* Restoring `white-space:nowrap` on `.tip` puts the tooltip's right edge at 332px in a
+  320px viewport -- the reviewer's measurement, reproduced.
+* That check is only meaningful if the tap reaches the *asymmetric* label, which is the
+  long one. The default pupil is a circle and has no asymmetric region, so an earlier
+  version of this test tapped the default pupil, only ever saw the short symmetric
+  string, and passed against the mutant. It now drives the slider to the most asymmetric
+  pupil and fails if the long label was never reached.
+
 ## Page syntax
 
 `src/page.js` is loaded by the browser as an ES module. Check it as one -- `node --check`

@@ -17,3 +17,9 @@ figures/*.png
 # scratch
 *.log
 .DS_Store
+# playwright, for test/mobile.mjs only (npm install && npx playwright install firefox)
+node_modules
+
+# PyTorch-side fixtures for test/net_verify.mjs: large binary reference output, not
+# reproducible from this repo alone. Point the test at them with NET_VERIFY_DIR.
+test/fixtures/
