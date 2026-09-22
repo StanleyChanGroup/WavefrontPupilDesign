@@ -66,7 +66,7 @@ the debounce, the other the reverse. A single timing regime tests neither.
 
 ## Mobile layout and touch  -- needs playwright
 
-    npm install && npx playwright install firefox
+    npm install && npx playwright install firefox chromium
     node test/mobile.mjs
 
 Headless Firefox over a real HTTP server, at 320/360/390/430/520/540/620/700/768/1024:
@@ -74,21 +74,54 @@ no document-level horizontal overflow (before and after the sticky bar appears),
 sticky slider and "New aberration" on screen, the model-loading overlay fitting its panel
 without covering the caption, no overflow after live resizing, the scatter selection
 surviving it, tap-to-pin on the scatter, and the decomposition tooltip staying inside a
-320px viewport. Exits 2 if playwright is absent, so it can be skipped rather than fail.
+320px viewport. Exits 2 if a browser is absent, and prints SKIP lines naming the checks that did not
+run, so a partial run cannot be mistaken for a pass.
 
 The DOM stub in `smoke.mjs` cannot catch any of this: it has no box model, so
 `getBoundingClientRect` returns whatever it was hard-coded to return. Every mobile defect
 found so far was invisible there and visible here.
+
+Two engines, deliberately. Layout runs in **Firefox**, where the reported overflow was
+first reproduced (scrollWidth 693 at a 390 viewport, 800 at 768). Touch runs in
+**Chromium**, because Playwright does not support mobile emulation in Firefox -- and that
+is not a silent no-op:
+
+    {hasTouch:true, isMobile:true}  ->  innerWidth 608   (600px box in a 390 viewport)
+    {hasTouch:true}                 ->  innerWidth 390
+
+With `isMobile` the Firefox layout viewport widens to fit overflowing content, which is
+the opposite of what an overflow test wants, and `hasTouch` leaves `ontouchstart` false
+and `maxTouchPoints` 0. Chromium honours both; the first touch check asserts the
+emulation actually took, so this cannot silently regress into fake-mobile again. The page
+itself branches only on `event.pointerType`, never on `ontouchstart` or a media query.
 
 Scrolling *inside* the pupil track, the pipeline and the citation block is intentional.
 The overflow check ignores anything clipped by an ancestor with `overflow-x` set, so it
 measures escapes from the document rather than deliberate inner scrolling. A failing
 width prints the offending elements, not just a number.
 
-Two checks here are mutation-tested against the defects that prompted them:
+The scroll check uses a **real finger drag** through Chromium's input pipeline
+(`Input.dispatchTouchEvent` over a CDP session), not `window.scrollBy`. Synthetic
+TouchEvents dispatched from page script are untrusted and never scroll, and programmatic
+scrolling passes even when the gesture is blocked. On a page with `touch-action:none` and
+a non-passive `touchmove` handler calling `preventDefault`:
+
+    old check (window.scrollBy):  700 -> 1200   => PASS
+    new check (real finger drag): 700 -> 700    => FAIL
+
+A companion check reports *why* panning is blocked -- an ancestor's `touch-action`, or a
+cancelled `touchmove` -- so the two causes are distinguishable. Both were mutation-tested
+against the live page: injecting either one fails both checks.
+
+This still is not a physical phone. It does not cover momentum, rubber-banding, browser
+chrome appearing and disappearing, or real hit-target size under a thumb.
+
+Four checks here are mutation-tested against the defects that prompted them:
 
 * Restoring `white-space:nowrap` on `.tip` puts the tooltip's right edge at 332px in a
   320px viewport -- the reviewer's measurement, reproduced.
+* Injecting `touch-action:none` on the scatter, or a `touchmove` handler that calls
+  `preventDefault`, each fails the drag check and is named by the blocker check.
 * That check is only meaningful if the tap reaches the *asymmetric* label, which is the
   long one. The default pupil is a circle and has no asymmetric region, so an earlier
   version of this test tapped the default pupil, only ever saw the short symmetric
