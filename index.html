@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+/* Runs before the stylesheet paints, so a reader who chose dark never sees a light
+   flash. Wrapped because localStorage throws in some privacy modes. */
+try{var t=localStorage.getItem('theme');
+    if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}
+</script>
 <title>Pupil Design for Computational Wavefront Estimation</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,15 +26,13 @@
   --cond:"IBM Plex Sans Condensed","IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --ground:#0B0F14; --surface:#141A22; --sunk:#0F141B;
-  --ink:#E4EBF3; --muted:#8695A8; --faint:#6A7889;
-  --line:#222B36; --line-strong:#33404F;
-  --pupil:#38A9E8; --flip:#E2504C; --sym:#A362D6; --asym:#F5BC3C;
-  --s-lo:#E4584C; --s-mid:#EDA93A; --s-hi:#2FB48D;
-  --io-in:#F0743C; --io-out:#35C79C;
-}}
+/* Light is the default for everyone. Dark is opt-in through the toggle, which sets
+   data-theme and remembers it; the system preference is deliberately not followed,
+   because a phone on "Automatic" appearance was serving dark to readers who had never
+   chosen it. color-scheme keeps the native controls (slider, scrollbars) in step. */
+:root{color-scheme:light}
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --ground:#0B0F14; --surface:#141A22; --sunk:#0F141B;
   --ink:#E4EBF3; --muted:#8695A8; --faint:#6A7889;
   --line:#222B36; --line-strong:#33404F;
@@ -69,6 +73,10 @@ h1{font-family:var(--cond);font-weight:700;font-size:clamp(26px,4.4vw,46px);line
   text-transform:uppercase;padding:7px 15px;border-radius:7px;border:1px solid var(--line-strong);
   background:var(--surface);color:var(--ink);text-decoration:none}
 .links a:hover{background:var(--sunk)}
+.tbtn{font-family:var(--cond);font-weight:600;font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink);background:var(--surface);cursor:pointer;
+  border:1px solid var(--line-strong);border-radius:7px;padding:7px 13px}
+.tbtn:hover{background:var(--sunk)}
 
 section{margin-top:32px}
 .shead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
@@ -80,8 +88,7 @@ section{margin-top:32px}
 /* ---- the demo: controls + mechanism on the left, payoff on the right ---- */
 .demo{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;
   display:flex;flex-direction:column;gap:11px}
-.demotitle{font-family:var(--cond);font-weight:700;font-size:clamp(17px,1.7vw,20px);letter-spacing:.005em;
-  margin:0 0 2px;color:var(--ink);text-wrap:balance}
+.demosub{margin:8px 0 13px;font-size:13.5px;line-height:1.55;color:var(--muted);max-width:78ch}
 
 /* ---- pupil track ---- */
 .track{display:flex;gap:3px;overflow-x:auto;padding:6px;background:var(--sunk);
@@ -307,8 +314,13 @@ footer p{margin:0 0 6px}
 /* sticky pupil control: rides along while the lower panels are on screen, and stops
    when its zone ends (just before the abstract). Hidden until the real controls leave. */
 .stickyzone{position:relative}
-.stickybar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
-  padding:8px 12px;margin-bottom:10px;border:1px solid var(--line);border-radius:10px;
+/* Fixed, not sticky. While hidden it still occupied its full height in the flow, which
+   is what opened the gap between the masthead links and the demo. Fixed also avoids the
+   layout jump that collapsing its height on toggle would cause. */
+.stickybar{position:fixed;top:8px;left:0;right:0;margin-inline:auto;
+  width:min(1100px,calc(100% - 40px));
+  z-index:20;display:flex;align-items:center;gap:14px;
+  padding:8px 12px;border:1px solid var(--line);border-radius:10px;
   background:color-mix(in srgb,var(--surface) 92%,transparent);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   box-shadow:0 2px 12px -6px rgba(0,0,0,.28);
@@ -394,6 +406,7 @@ footer p{margin:0 0 6px}
       <a href="https://arxiv.org/abs/2604.00225">Paper</a>
       <a href="https://github.com/StanleyChanGroup/WavefrontPupilDesign">Code</a>
       <a href="#cite">BibTeX</a>
+      <button type="button" id="bTheme" class="tbtn" aria-pressed="false">Dark</button>
     </div>
   </header>
 
@@ -415,8 +428,14 @@ footer p{margin:0 0 6px}
     </div>
 
   <section style="margin-top:6px">
+    <div class="shead">
+      <h2>Real-time Aberration Estimation</h2>
+    </div>
+    <p class="demosub">Load the model, choose a pupil. The network will predict the wavefront
+      in real time. You may generate a new aberration by clicking the
+      &ldquo;New aberration&rdquo; button. More asymmetric pupils allow better wavefront
+      recovery. The input to the network is a single PSF measurement.</p>
     <div class="demo">
-      <h3 class="demotitle">Real-time aberration inference using our trained neural network</h3>
       <div class="cap"><span class="k">Pupil</span><span class="nm" id="pName"></span></div>
       <div class="track" id="track" role="group" aria-label="Select a pupil"></div>
 
@@ -508,7 +527,7 @@ footer p{margin:0 0 6px}
 
   <section>
     <div class="shead">
-      <h2>Real-time Network Prediction</h2>
+      <h2>Real-time Predicted Wavefront</h2>
     </div>
     <div class="panel">
       <div class="pipescroll"><div class="pipe">
@@ -581,7 +600,7 @@ footer p{margin:0 0 6px}
     <div class="shead">
       <h2>Performance across asymmetry</h2>
       <p>Each dot is one test pupil, averaged over 1000 test wavefronts.
-         Hover to see its shape.</p>
+         Hover to see its shape. Click on any pupil and scroll up to see its performance.</p>
     </div>
     <div class="panel">
       <div class="pick" style="margin-bottom:9px">

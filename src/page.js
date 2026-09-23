@@ -36,9 +36,10 @@ function path(ctx,sh,W,dx=0,dy=0,flip=false){
     ctx.closePath();
   }
 }
-const isDark=()=>matchMedia('(prefers-color-scheme:dark)').matches
-  && document.documentElement.getAttribute('data-theme')!=='light'
-  || document.documentElement.getAttribute('data-theme')==='dark';
+/* Dark is opt-in only. The page used to follow prefers-color-scheme, which meant a phone
+   on "Automatic" appearance served dark after sunset to readers who had never asked for
+   it. The toggle sets data-theme and stores it. */
+const isDark=()=>document.documentElement.getAttribute('data-theme')==='dark';
 function fillShape(cv,sh,color,opts={}){
   const g=cv.getContext('2d'), W=cv.width;
   g.clearRect(0,0,W,W); g.fillStyle=css('--sunk'); g.fillRect(0,0,W,W);
@@ -349,7 +350,7 @@ function update(){
   $('hAlpha').textContent=alpha.toFixed(4);
   $('hPct').innerHTML=pct.toFixed(1)+'<small>%</small>';
   $('pName').textContent=curName();
-  if($('rAlpha2')) $('rAlpha2').value=sel;
+  for(const id of ['rAlpha','rAlpha2']) if($(id)) $(id).value=sel;
   if($('sName'))  $('sName').textContent=curName();
   if($('sAlpha')) $('sAlpha').textContent=alpha.toFixed(3);
   if($('sPct'))   $('sPct').textContent=pct.toFixed(0)+'%';
@@ -563,6 +564,30 @@ for(const id of ['rAlpha','rAlpha2']){
   });
 }
 
+/* ---------- theme ---------- */
+/* The canvases bake the theme into their pixels at draw time, so a switch has to redraw
+   them; CSS variables alone would leave every plot in the old palette. */
+(function(){
+  const btn=$('bTheme'); if(!btn) return;
+  const root=document.documentElement;
+  const paint=()=>{
+    const dark=isDark();
+    btn.textContent = dark ? 'Light' : 'Dark';
+    btn.setAttribute('aria-pressed', String(dark));
+    btn.setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
+  };
+  paint();
+  btn.addEventListener('click',()=>{
+    const dark=!isDark();
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(e){}
+    paint();
+    update();                                     // pupil, decomposition, scenes, pipeline
+    drawTrend();
+    window.dispatchEvent(new Event('themechange'));  // the population scatter
+  });
+})();
+
 /* the sticky bar only appears once the real controls have scrolled off */
 if(window.IntersectionObserver && $('sticky')){
   const ctl=document.querySelector('.demo .ctl');
@@ -710,6 +735,14 @@ buildTrend();
     const d=Scat.get();
     picked={ id:i, mask:Scat.maskOf(i), shape:{kind:'poly',pts:pairs(Scat.shapeOf(i))},
              alpha:d.alpha[i], thru:d.thru[i] };
+    /* Move the ladder to the rung closest in asymmetry. The picked pupil is off-ladder, so
+       `sel` used to keep whatever it was: choosing the most asymmetric pupil from the
+       scatter left the slider hard left, reading as "no asymmetry". The slider now shows
+       roughly where this pupil sits, and releasing it returns to that rung. */
+    let near=0, gap=Infinity;
+    FRAMES.forEach((f,k)=>{ const dd=Math.abs(f.alpha_corrected-picked.alpha);
+                            if(dd<gap){ gap=dd; near=k; } });
+    sel=near;
     $('scNote').textContent=`showing pupil ${i} — pick another, or move the slider to go back`;
     update();
     const bar=$('sticky');
@@ -750,6 +783,7 @@ buildTrend();
     });
   }
   if(window.ResizeObserver) new ResizeObserver(()=>render()).observe(cv);
+  window.addEventListener('themechange',()=>render());
 
   Scat.load().then(d=>{
     ready=true;
