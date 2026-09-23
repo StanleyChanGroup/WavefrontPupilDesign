@@ -380,7 +380,6 @@ footer p{margin:0 0 6px}
 <div class="wrap">
 
   <header class="mast">
-    <p class="venue">Under review · Optics Express</p>
     <h1>Pupil Design for Computational Wavefront Estimation</h1>
     <p class="hook">A comprehensive study of asymmetry in wavefront estimation</p>
     <p class="authors">
@@ -509,8 +508,7 @@ footer p{margin:0 0 6px}
 
   <section>
     <div class="shead">
-      <h2>What the network sees</h2>
-      <p>The network is given two things: the measured intensity and the pupil geometry, which is known because we built the aperture. Only the wavefront is inferred.</p>
+      <h2>Real-time Network Prediction</h2>
     </div>
     <div class="panel">
       <div class="pipescroll"><div class="pipe">
@@ -520,9 +518,9 @@ footer p{margin:0 0 6px}
         <div class="cell io-in"><canvas id="cAbb" width="130" height="130"></canvas>
           <span class="tag">Input: aberrated PSF</span></div>
         <div class="cell net"><canvas id="cPredI" width="130" height="130"></canvas>
-          <span class="val">Predicted PSF (by-product)</span></div>
+          <span class="val">Predicted PSF (byproduct)</span></div>
         <div class="cell net"><canvas id="cCorrI" width="130" height="130"></canvas>
-          <span class="val">Corrected PSF (by-product)</span></div>
+          <span class="val">Corrected PSF (byproduct)</span></div>
 
         <div class="rlab">Wavefront</div>
         <div class="cell io-in"><canvas id="cFlat" width="130" height="130"></canvas>
@@ -548,6 +546,9 @@ footer p{margin:0 0 6px}
     </div>
   </section>
   <section>
+    <div class="shead">
+      <h2>PSF Ambiguity</h2>
+    </div>
     <div class="cols two">
       <div class="panel">
         <h3>The ambiguity <em>pupil fixed</em></h3>
@@ -578,8 +579,8 @@ footer p{margin:0 0 6px}
 
   <section>
     <div class="shead">
-      <h2>All 1500 test pupils</h2>
-      <p>Each dot is one held-out pupil, scored over 1000 held-out wavefronts.
+      <h2>Performance across asymmetry</h2>
+      <p>Each dot is one test pupil, averaged over 1000 test wavefronts.
          Hover to see its shape.</p>
     </div>
     <div class="panel">
@@ -611,7 +612,7 @@ footer p{margin:0 0 6px}
   <section>
     <div class="shead">
       <h2>Results</h2>
-      <p>Across 1500 held-out pupils and 1000 held-out wavefronts.</p>
+      <p>Across 1500 test pupils and 1000 test wavefronts.</p>
     </div>
     <div class="figgrid two">
       <figure><img src="figures/loss_vs_asym.webp" alt="Estimation error against asymmetry">
@@ -645,13 +646,12 @@ footer p{margin:0 0 6px}
       <span style="font-family:var(--mono)">†</span> Strehl is measured against each pupil's own
       diffraction limit. <span style="font-family:var(--mono)">‡</span> PSF difference is
       ½‖y−y*‖₁ ⁄ Σy, averaged over <span id="fNW">—</span> wavefronts.</p>
-    <p>The resolution target, star field and terrain are generated in code. The
-      <a href="https://hdl.handle.net/1721.3/195767" style="color:inherit">Cameraman</a> image is
+    <p>The <a href="https://hdl.handle.net/1721.3/195767" style="color:inherit">Cameraman</a> image is
       &copy;&nbsp;MIT, used under
       <a href="https://creativecommons.org/licenses/by-nc/4.0/" style="color:inherit">CC&nbsp;BY-NC&nbsp;4.0</a>.</p>
     <p>Pupils and wavefronts both come from the paper's published test split. The network is the
       published noiseless U-Net exported to fp16 ONNX — worst-case Strehl deviation from the original
-      PyTorch model is 7.0&times;10⁻⁴ over 300 held-out cases — and the forward model is a JavaScript
+      PyTorch model is 7.0&times;10⁻⁴ over 300 test cases — and the forward model is a JavaScript
       port verified against the published implementation to ~1e-14. Everything runs locally in your
       browser; nothing is uploaded.</p>
   </footer>
