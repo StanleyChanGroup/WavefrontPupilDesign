@@ -3,6 +3,12 @@
 Reference implementation for [*Pupil Design for Computational Wavefront Estimation*](https://arxiv.org/abs/2604.00225)
 by Ali Almuallem, Nicholas Chimitt, Bole Ma, Qi Guo and Stanley H. Chan.
 
+[![Project Page](https://img.shields.io/badge/Project-Page-green?style=for-the-badge)](https://stanleychangroup.github.io/WavefrontPupilDesign/)
+
+The [project page](https://stanleychangroup.github.io/WavefrontPupilDesign/) runs the
+trained network in your browser: pick a pupil, draw an aberration, and watch the
+wavefront estimate and the corrected image update live. Its source is under `docs/`.
+
 Recovering a wavefront from a single intensity image is degenerate for a
 symmetric pupil: the measurement cannot distinguish a wavefront from its
 conjugate. Breaking that symmetry lifts the degeneracy. This repository provides
