@@ -1,0 +1,14 @@
+{
+  "name": "pupil-design-page",
+  "private": true,
+  "type": "module",
+  "description": "Project page and interactive demo for 'Pupil Design for Computational Wavefront Estimation'.",
+  "scripts": {
+    "test": "node test/verify.mjs && node test/scenes_verify.mjs && node test/smoke.mjs",
+    "test:mobile": "node test/mobile.mjs",
+    "test:net": "node test/net_verify.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

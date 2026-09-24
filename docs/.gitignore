@@ -1,0 +1,25 @@
+# Development artefacts -- large, and not needed to serve the page.
+#
+# Keeping these out holds the committed page to ~34 MB. Committing them would add
+# ~103 MB that no visitor ever downloads.
+
+# fp32 reference model: only used to verify the fp16 file that actually ships
+assets/unet_fp32.onnx
+
+# golden.npz is the bulky whole-array companion (11.8 MB). golden.json is NOT ignored:
+# it is self-sufficient and test/verify.mjs needs it, so a fresh clone can reproduce the
+# optics verification with `node test/verify.mjs --no-npz`.
+assets/golden.npz
+
+# PNG figure sources -- the page serves the .webp beside them
+figures/*.png
+
+# scratch
+*.log
+.DS_Store
+# playwright, for test/mobile.mjs only (npm install && npx playwright install firefox)
+node_modules
+
+# PyTorch-side fixtures for test/net_verify.mjs: large binary reference output, not
+# reproducible from this repo alone. Point the test at them with NET_VERIFY_DIR.
+test/fixtures/
