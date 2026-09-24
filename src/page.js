@@ -572,9 +572,11 @@ for(const id of ['rAlpha','rAlpha2']){
   const root=document.documentElement;
   const paint=()=>{
     const dark=isDark();
-    btn.textContent = dark ? 'Light' : 'Dark';
-    btn.setAttribute('aria-pressed', String(dark));
-    btn.setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
+    /* role="switch" wants aria-checked, not aria-pressed; the CSS keys the knob and the
+       lit icon off it, so this one attribute drives the whole visual state. */
+    btn.setAttribute('aria-checked', String(dark));
+    btn.setAttribute('aria-label', dark ? 'Dark theme, on' : 'Dark theme, off');
+    btn.title = dark ? 'Switch to the light theme' : 'Switch to the dark theme';
   };
   paint();
   btn.addEventListener('click',()=>{
