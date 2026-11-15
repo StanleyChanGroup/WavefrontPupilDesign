@@ -204,9 +204,16 @@ Published noise levels are `sigma` in `{0, 0.001, 0.01, 0.03}`.
 
 ```bibtex
 @article{almuallem2026pupil,
-  title  = {Pupil Design for Computational Wavefront Estimation},
-  author = {Almuallem, Ali and Chimitt, Nicholas and Ma, Bole and Guo, Qi and Chan, Stanley H.},
-  journal = {arXiv preprint arXiv:2604.00225},
-  year   = {2026}
+  author = {Ali Almuallem and Nicholas Chimitt and Bole Ma and Qi Guo and Stanley H. Chan},
+  journal = {Opt. Express},
+  number = {23},
+  pages = {45049--45063},
+  publisher = {Optica Publishing Group},
+  title = {Pupil design for computational wavefront estimation},
+  volume = {34},
+  month = {Nov},
+  year = {2026},
+  url = {https://opg.optica.org/oe/abstract.cfm?URI=oe-34-23-45049},
+  doi = {10.1364/OE.609577},
 }
 ```
