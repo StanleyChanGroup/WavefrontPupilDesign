@@ -70,6 +70,10 @@ body{background:var(--ground);color:var(--ink);font-family:var(--sans);line-heig
 .mast{text-align:center;padding-bottom:18px}
 h1{font-family:var(--cond);font-weight:700;font-size:clamp(26px,4.4vw,46px);line-height:1.06;
   letter-spacing:-.014em;margin:0 auto;text-wrap:balance;max-width:26ch}
+/* Publication venue, directly under the title. Not a link, so it takes ink rather than
+   the accent colour the author links use. */
+.venue{margin:9px 0 0;font-family:var(--cond);font-weight:600;font-size:13px;
+  letter-spacing:.17em;text-transform:uppercase;color:var(--ink)}
 .hook{margin:10px auto 0;max-width:60ch;font-size:17px;color:var(--muted);text-wrap:pretty}
 .hook b{color:var(--ink);font-weight:500}
 .authors{margin:14px 0 0;font-size:14px;line-height:1.7}
@@ -434,6 +438,7 @@ footer p{margin:0 0 6px}
 
   <header class="mast">
     <h1>Pupil Design for Computational Wavefront Estimation</h1>
+    <p class="venue">Optics Express</p>
     <p class="hook">A comprehensive study of asymmetry in wavefront estimation</p>
     <p class="authors">
       <a href="https://almuallem.github.io/">Ali Almuallem</a><span class="sep"> · </span>
@@ -444,7 +449,8 @@ footer p{margin:0 0 6px}
     </p>
     <p class="affil">Elmore Family School of Electrical and Computer Engineering, Purdue University</p>
     <div class="links">
-      <a href="https://arxiv.org/abs/2604.00225">Paper</a>
+      <a href="https://opg.optica.org/oe/fulltext.cfm?uri=oe-34-23-45049">Optics Express</a>
+      <a href="https://arxiv.org/abs/2604.00225">arXiv</a>
       <a href="https://github.com/StanleyChanGroup/WavefrontPupilDesign">Code</a>
       <a href="#cite">BibTeX</a>
     </div>
